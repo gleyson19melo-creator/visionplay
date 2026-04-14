@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "usuario": "adminMaster",
+    "senha": "IPTV@Painel2026#Seguro",
+    "tipo": "admin"
+  },
+  {
+    "id": 1776191501009,
+    "usuario": "cliente01",
+    "senha": "Cliente@123",
+    "tipo": "cliente"
+  }
+]

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel Admin IPTV</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+
+    <section class="hero">
+      <div>
+        <h1>Painel Admin IPTV</h1>
+        <p>Gerencie canais, usuários e seu sistema profissional.</p>
+      </div>
+
+      <div class="hero-actions">
+        <a href="index.html" class="btn">Voltar</a>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="stat-card">
+        <span>Total de canais</span>
+        <strong id="totalCanais">0</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Total de usuários</span>
+        <strong id="totalUsuarios">0</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Status</span>
+        <strong>Online</strong>
+      </div>
+    </section>
+
+    <section class="layout" style="margin-bottom:22px;">
+      <div class="panel-card">
+        <h2>Adicionar usuário</h2>
+        <p class="subtitle">Crie novos acessos para o sistema.</p>
+
+        <form id="userForm">
+          <div>
+            <label>Usuário</label>
+            <input type="text" id="novoUsuario" placeholder="Ex: cliente01" required>
+          </div>
+
+          <div>
+            <label>Senha</label>
+            <input type="text" id="novaSenha" placeholder="Ex: Cliente@123" required>
+          </div>
+
+          <div>
+            <label>Tipo</label>
+            <input type="text" id="tipoUsuario" placeholder="admin ou cliente" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Adicionar usuário</button>
+        </form>
+
+        <div id="userMessage" class="message"></div>
+      </div>
+
+      <div class="channels-card">
+        <div class="channels-top">
+          <div>
+            <h2>Usuários do sistema</h2>
+            <p>Lista de usuários cadastrados.</p>
+          </div>
+        </div>
+
+        <div id="listaUsuarios" class="channel-grid"></div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="panel-card">
+        <h2>Adicionar canal</h2>
+
+        <form id="channelForm">
+          <div>
+            <label>Nome do canal</label>
+            <input type="text" id="nome" required>
+          </div>
+
+          <div>
+            <label>Categoria</label>
+            <input type="text" id="categoria" required>
+          </div>
+
+          <div>
+            <label>URL do canal</label>
+            <input type="text" id="url" required>
+          </div>
+
+          <div>
+            <label>Logo</label>
+            <input type="text" id="logo">
+          </div>
+
+          <button type="submit" class="btn btn-primary">Adicionar canal</button>
+        </form>
+
+        <div id="mensagem" class="message"></div>
+      </div>
+
+      <div class="channels-card">
+        <div class="channels-top">
+          <div>
+            <h2>Seus canais</h2>
+            <p>Lista de canais cadastrados.</p>
+          </div>
+        </div>
+
+        <div class="search-box">
+          <input type="text" id="busca" placeholder="Buscar por nome ou categoria...">
+        </div>
+
+        <div id="listaCanais" class="channel-grid"></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="playerModal" class="modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="playerTitle">Reprodução do canal</h3>
+        <button class="close-btn" onclick="fecharPlayer()">Fechar</button>
+      </div>
+      <div class="modal-content">
+        <video id="videoPlayer" controls autoplay></video>
+        <p class="player-note">Para teste real, use links MP4 válidos.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="editModal" class="modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Editar canal</h3>
+        <button class="close-btn" onclick="fecharEdicao()">Fechar</button>
+      </div>
+      <div class="modal-content">
+        <form id="editForm" class="edit-form">
+          <input type="hidden" id="editId">
+
+          <div>
+            <label for="editNome">Nome do canal</label>
+            <input type="text" id="editNome" required>
+          </div>
+
+          <div>
+            <label for="editCategoria">Categoria</label>
+            <input type="text" id="editCategoria" required>
+          </div>
+
+          <div>
+            <label for="editUrl">URL do canal</label>
+            <input type="text" id="editUrl" required>
+          </div>
+
+          <div>
+            <label for="editLogo">URL da logo</label>
+            <input type="text" id="editLogo">
+          </div>
+
+          <button type="submit" class="btn btn-primary">Salvar alterações</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

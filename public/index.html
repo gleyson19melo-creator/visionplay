@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vision Play</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="login-wrapper">
+    <div class="login-card">
+      <h1>Vision Play</h1>
+      <p>Faça login para entrar na plataforma.</p>
+
+      <form id="loginForm">
+        <div>
+          <label for="loginUser">Usuário</label>
+          <input type="text" id="loginUser" placeholder="Digite seu usuário" required>
+        </div>
+
+        <div>
+          <label for="loginPass">Senha</label>
+          <input type="password" id="loginPass" placeholder="Digite sua senha" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Entrar</button>
+      </form>
+
+      <div id="loginMessage" class="message"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

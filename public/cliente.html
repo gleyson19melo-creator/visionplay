@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vision Play</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <div>
+        <h1>Vision Play</h1>
+        <p>Assista aos canais disponíveis para seu acesso.</p>
+      </div>
+
+      <div class="hero-actions">
+        <button class="btn btn-logout" onclick="logout()">Sair</button>
+      </div>
+    </section>
+
+    <section class="channels-card">
+      <div class="channels-top">
+        <div>
+          <h2>Canais disponíveis</h2>
+          <p>Lista liberada para o cliente.</p>
+        </div>
+      </div>
+
+      <div id="listaCanais" class="channel-grid"></div>
+    </section>
+  </div>
+
+  <div id="playerModal" class="modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="playerTitle">Reprodução do canal</h3>
+        <button class="close-btn" onclick="fecharPlayer()">Fechar</button>
+      </div>
+      <div class="modal-content">
+        <video id="videoPlayer" controls autoplay></video>
+        <p class="player-note">Aproveite seu conteúdo liberado.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

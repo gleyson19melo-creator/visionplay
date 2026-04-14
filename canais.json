@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1776193804509,
+    "nome": "Globo",
+    "categoria": "TV",
+    "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/2/2f/TV_Globo_logo_2021.svg",
+    "status": "online",
+    "criadoEm": "2026-04-14T19:10:04.509Z"
+  },
+  {
+    "id": 1776194821350,
+    "nome": "TV Teste HD",
+    "categoria": "TV",
+    "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/2/2f/TV_Globo_logo_2021.svg",
+    "status": "online",
+    "criadoEm": "2026-04-14T19:27:01.350Z"
+  },
+  {
+    "id": 1776194861190,
+    "nome": "Esporte Teste",
+    "categoria": "Esportes",
+    "url": "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8",
+    "logo": "https://cdn-icons-png.flaticon.com/512/857/857455.png",
+    "status": "online",
+    "criadoEm": "2026-04-14T19:27:41.190Z"
+  }
+]
