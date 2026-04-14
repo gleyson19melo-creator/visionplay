@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel Admin IPTV</title>
+  <title>Vision Play | Painel Administrativo</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -11,8 +11,8 @@
 
     <section class="hero">
       <div>
-        <h1>Vision Play Admin</h1>
-        <p>Gerencie canais, usuários e seu sistema profissional.</p>
+        <h1>Vision Play</h1>
+        <p>Painel administrativo para gerenciamento completo da plataforma.</p>
       </div>
 
       <div class="hero-actions">
@@ -32,7 +32,7 @@
       </div>
 
       <div class="stat-card">
-        <span>Status</span>
+        <span>Status da plataforma</span>
         <strong>Online</strong>
       </div>
     </section>
@@ -68,7 +68,7 @@
         <div class="channels-top">
           <div>
             <h2>Usuários do sistema</h2>
-            <p>Lista de usuários cadastrados.</p>
+            <p>Gerencie os usuários cadastrados na plataforma.</p>
           </div>
         </div>
 
@@ -79,6 +79,7 @@
     <section class="layout">
       <div class="panel-card">
         <h2>Adicionar canal</h2>
+        <p class="subtitle">Cadastre novos canais para os clientes.</p>
 
         <form id="channelForm">
           <div>
@@ -110,8 +111,8 @@
       <div class="channels-card">
         <div class="channels-top">
           <div>
-            <h2>Seus canais</h2>
-            <p>Lista de canais cadastrados.</p>
+            <h2>Canais cadastrados</h2>
+            <p>Gerencie e acompanhe os canais disponíveis.</p>
           </div>
         </div>
 
@@ -122,6 +123,7 @@
         <div id="listaCanais" class="channel-grid"></div>
       </div>
     </section>
+
   </div>
 
   <div id="playerModal" class="modal">
@@ -130,9 +132,10 @@
         <h3 id="playerTitle">Reprodução do canal</h3>
         <button class="close-btn" onclick="fecharPlayer()">Fechar</button>
       </div>
+
       <div class="modal-content">
         <video id="videoPlayer" controls playsinline webkit-playsinline></video>
-        <p class="player-note">Player com suporte melhor para MP4 e canais HLS (.m3u8).</p>
+        <p class="player-note">Player com suporte avançado para MP4 e canais HLS (.m3u8).</p>
       </div>
     </div>
   </div>
@@ -143,6 +146,7 @@
         <h3>Editar canal</h3>
         <button class="close-btn" onclick="fecharEdicao()">Fechar</button>
       </div>
+
       <div class="modal-content">
         <form id="editForm" class="edit-form">
           <input type="hidden" id="editId">
