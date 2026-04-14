@@ -16,7 +16,7 @@
       </div>
 
       <div class="hero-actions">
-        <a href="index.html" class="btn">Voltar</a>
+        <button class="btn btn-logout" onclick="logout()">Sair</button>
       </div>
     </section>
 
@@ -131,8 +131,8 @@
         <button class="close-btn" onclick="fecharPlayer()">Fechar</button>
       </div>
       <div class="modal-content">
-        <video id="videoPlayer" controls autoplay></video>
-        <p class="player-note">Para teste real, use links MP4 válidos.</p>
+        <video id="videoPlayer" controls playsinline webkit-playsinline></video>
+        <p class="player-note">Player com suporte melhor para MP4 e canais HLS (.m3u8).</p>
       </div>
     </div>
   </div>
@@ -173,6 +173,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="/app.js"></script>
 </body>
 </html>

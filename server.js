@@ -1,14 +1,28 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const session = require('express-session');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const CHANNELS_FILE = path.join(__dirname, 'canais.json');
 const USERS_FILE = path.join(__dirname, 'usuarios.json');
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use(session({
+  secret: 'visionplay_sessao_secreta_2026',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: false,
+    maxAge: 1000 * 60 * 60 * 12
+  }
+}));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 function readJson(filePath) {
@@ -32,6 +46,29 @@ function saveJson(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
+function requireAuth(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Não autenticado.' });
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Não autenticado.' });
+  }
+
+  if (req.session.user.tipo !== 'admin') {
+    return res.status(403).json({ error: 'Acesso restrito ao admin.' });
+  }
+
+  next();
+}
+
+/* =========================
+   LOGIN / LOGOUT / SESSÃO
+========================= */
+
 app.post('/api/login', (req, res) => {
   const { usuario, senha } = req.body;
   const users = readJson(USERS_FILE);
@@ -44,6 +81,12 @@ app.post('/api/login', (req, res) => {
     return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
   }
 
+  req.session.user = {
+    id: foundUser.id,
+    usuario: foundUser.usuario,
+    tipo: foundUser.tipo
+  };
+
   res.json({
     message: 'Login realizado com sucesso.',
     tipo: foundUser.tipo,
@@ -51,7 +94,28 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-app.get('/api/usuarios', (req, res) => {
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.json({ message: 'Logout realizado com sucesso.' });
+  });
+});
+
+app.get('/api/session', (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Sem sessão ativa.' });
+  }
+
+  res.json({
+    usuario: req.session.user.usuario,
+    tipo: req.session.user.tipo
+  });
+});
+
+/* =========================
+   USUÁRIOS
+========================= */
+
+app.get('/api/usuarios', requireAdmin, (req, res) => {
   const users = readJson(USERS_FILE).map((user) => ({
     id: user.id,
     usuario: user.usuario,
@@ -61,7 +125,7 @@ app.get('/api/usuarios', (req, res) => {
   res.json(users);
 });
 
-app.post('/api/usuarios', (req, res) => {
+app.post('/api/usuarios', requireAdmin, (req, res) => {
   const { usuario, senha, tipo } = req.body;
 
   if (!usuario || !senha || !tipo) {
@@ -86,7 +150,7 @@ app.post('/api/usuarios', (req, res) => {
     id: Date.now(),
     usuario: String(usuario).trim(),
     senha: String(senha).trim(),
-    tipo: String(tipo).trim()
+    tipo: String(tipo).trim().toLowerCase()
   };
 
   users.push(newUser);
@@ -102,7 +166,7 @@ app.post('/api/usuarios', (req, res) => {
   });
 });
 
-app.delete('/api/usuarios/:id', (req, res) => {
+app.delete('/api/usuarios/:id', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   const users = readJson(USERS_FILE);
 
@@ -112,9 +176,9 @@ app.delete('/api/usuarios/:id', (req, res) => {
     return res.status(404).json({ error: 'Usuário não encontrado.' });
   }
 
-  if (userToDelete.usuario === 'adminMaster') {
+  if (userToDelete.tipo === 'admin') {
     return res.status(400).json({
-      error: 'O usuário adminMaster não pode ser removido.'
+      error: 'Não é permitido excluir um usuário admin por aqui.'
     });
   }
 
@@ -124,11 +188,15 @@ app.delete('/api/usuarios/:id', (req, res) => {
   res.json({ message: 'Usuário removido com sucesso.' });
 });
 
-app.get('/api/canais', (req, res) => {
+/* =========================
+   CANAIS
+========================= */
+
+app.get('/api/canais', requireAuth, (req, res) => {
   res.json(readJson(CHANNELS_FILE));
 });
 
-app.post('/api/canais', (req, res) => {
+app.post('/api/canais', requireAdmin, (req, res) => {
   const { nome, categoria, url, logo } = req.body;
 
   if (!nome || !categoria || !url) {
@@ -158,7 +226,7 @@ app.post('/api/canais', (req, res) => {
   });
 });
 
-app.put('/api/canais/:id', (req, res) => {
+app.put('/api/canais/:id', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   const { nome, categoria, url, logo } = req.body;
 
@@ -192,7 +260,7 @@ app.put('/api/canais/:id', (req, res) => {
   });
 });
 
-app.delete('/api/canais/:id', (req, res) => {
+app.delete('/api/canais/:id', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   const channels = readJson(CHANNELS_FILE);
   const filtered = channels.filter((channel) => channel.id !== id);
@@ -205,8 +273,36 @@ app.delete('/api/canais/:id', (req, res) => {
   res.json({ message: 'Canal removido com sucesso.' });
 });
 
+/* =========================
+   PÁGINAS PROTEGIDAS
+========================= */
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/admin.html', (req, res) => {
+  if (!req.session.user) {
+    return res.redirect('/');
+  }
+
+  if (req.session.user.tipo !== 'admin') {
+    return res.redirect('/cliente.html');
+  }
+
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/cliente.html', (req, res) => {
+  if (!req.session.user) {
+    return res.redirect('/');
+  }
+
+  if (req.session.user.tipo !== 'cliente') {
+    return res.redirect('/admin.html');
+  }
+
+  res.sendFile(path.join(__dirname, 'public', 'cliente.html'));
 });
 
 app.listen(PORT, () => {
