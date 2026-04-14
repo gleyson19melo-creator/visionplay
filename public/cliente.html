@@ -3,73 +3,124 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vision Play</title>
+  <title>Painel Admin IPTV</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div class="container">
+
     <section class="hero">
       <div>
-        <h1>Vision Play</h1>
-        <p>Explore seus canais com uma experiência moderna, rápida e organizada.</p>
+        <h1>Painel Admin IPTV</h1>
+        <p>Gerencie canais, usuários e seu sistema profissional.</p>
       </div>
 
       <div class="hero-actions">
-        <button class="btn btn-logout" onclick="logout()">Sair</button>
+        <a href="index.html" class="btn">Voltar</a>
       </div>
     </section>
 
     <section class="stats">
       <div class="stat-card">
-        <span>Canais disponíveis</span>
-        <strong id="totalCanaisCliente">0</strong>
+        <span>Total de canais</span>
+        <strong id="totalCanais">0</strong>
       </div>
 
       <div class="stat-card">
-        <span>Status da conta</span>
-        <strong>Ativa</strong>
+        <span>Total de usuários</span>
+        <strong id="totalUsuarios">0</strong>
       </div>
 
       <div class="stat-card">
-        <span>Qualidade</span>
-        <strong>Premium</strong>
+        <span>Status</span>
+        <strong>Online</strong>
       </div>
     </section>
 
-    <section class="channels-card" style="margin-bottom: 22px;">
-      <div class="channels-top">
-        <div>
-          <h2>Destaque</h2>
-          <p>Seu acesso premium está pronto para assistir.</p>
-        </div>
+    <section class="layout" style="margin-bottom:22px;">
+      <div class="panel-card">
+        <h2>Adicionar usuário</h2>
+        <p class="subtitle">Crie novos acessos para o sistema.</p>
+
+        <form id="userForm">
+          <div>
+            <label>Usuário</label>
+            <input type="text" id="novoUsuario" placeholder="Ex: cliente01" required>
+          </div>
+
+          <div>
+            <label>Senha</label>
+            <input type="text" id="novaSenha" placeholder="Ex: Cliente@123" required>
+          </div>
+
+          <div>
+            <label>Tipo</label>
+            <input type="text" id="tipoUsuario" placeholder="admin ou cliente" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Adicionar usuário</button>
+        </form>
+
+        <div id="userMessage" class="message"></div>
       </div>
 
-      <div class="channel-card">
-        <div class="channel-body">
-          <div class="channel-meta">
-            <div class="channel-name">Bem-vindo à Vision Play</div>
-            <span class="status">online</span>
-          </div>
-          <div class="channel-info">
-            Aproveite seus canais com um visual mais profissional e uma navegação mais simples.
+      <div class="channels-card">
+        <div class="channels-top">
+          <div>
+            <h2>Usuários do sistema</h2>
+            <p>Lista de usuários cadastrados.</p>
           </div>
         </div>
+
+        <div id="listaUsuarios" class="channel-grid"></div>
       </div>
     </section>
 
-    <section class="channels-card">
-      <div class="channels-top">
-        <div>
-          <h2>Canais disponíveis</h2>
-          <p>Escolha um canal para assistir agora.</p>
+    <section class="layout">
+      <div class="panel-card">
+        <h2>Adicionar canal</h2>
+
+        <form id="channelForm">
+          <div>
+            <label>Nome do canal</label>
+            <input type="text" id="nome" required>
+          </div>
+
+          <div>
+            <label>Categoria</label>
+            <input type="text" id="categoria" required>
+          </div>
+
+          <div>
+            <label>URL do canal</label>
+            <input type="text" id="url" required>
+          </div>
+
+          <div>
+            <label>Logo</label>
+            <input type="text" id="logo">
+          </div>
+
+          <button type="submit" class="btn btn-primary">Adicionar canal</button>
+        </form>
+
+        <div id="mensagem" class="message"></div>
+      </div>
+
+      <div class="channels-card">
+        <div class="channels-top">
+          <div>
+            <h2>Seus canais</h2>
+            <p>Lista de canais cadastrados.</p>
+          </div>
         </div>
-      </div>
 
-      <div class="search-box">
-        <input type="text" id="buscaCliente" placeholder="Buscar canal por nome ou categoria...">
-      </div>
+        <div class="search-box">
+          <input type="text" id="busca" placeholder="Buscar por nome ou categoria...">
+        </div>
 
-      <div id="listaCanais" class="channel-grid"></div>
+        <div id="listaCanais" class="channel-grid"></div>
+      </div>
     </section>
   </div>
 
@@ -80,126 +131,49 @@
         <button class="close-btn" onclick="fecharPlayer()">Fechar</button>
       </div>
       <div class="modal-content">
-        <video id="videoPlayer" controls autoplay></video>
-        <p class="player-note">Aproveite seu conteúdo premium com melhor experiência visual.</p>
+        <video id="videoPlayer" controls playsinline webkit-playsinline></video>
+        <p class="player-note">Player com suporte melhor para MP4 e canais HLS (.m3u8).</p>
       </div>
     </div>
   </div>
 
-  <script>
-    const STORAGE_KEY = 'iptv_logged_in';
-    const USER_TYPE_KEY = 'tipo_usuario';
+  <div id="editModal" class="modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Editar canal</h3>
+        <button class="close-btn" onclick="fecharEdicao()">Fechar</button>
+      </div>
+      <div class="modal-content">
+        <form id="editForm" class="edit-form">
+          <input type="hidden" id="editId">
 
-    const listaCanais = document.getElementById('listaCanais');
-    const buscaCliente = document.getElementById('buscaCliente');
-    const totalCanaisCliente = document.getElementById('totalCanaisCliente');
-    const playerModal = document.getElementById('playerModal');
-    const videoPlayer = document.getElementById('videoPlayer');
-    const playerTitle = document.getElementById('playerTitle');
-
-    let canaisCliente = [];
-
-    if (localStorage.getItem(STORAGE_KEY) !== 'true') {
-      window.location.href = '/';
-    }
-
-    const tipo = localStorage.getItem(USER_TYPE_KEY);
-    if (tipo !== 'cliente') {
-      window.location.href = '/admin.html';
-    }
-
-    function logout() {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(USER_TYPE_KEY);
-      window.location.href = '/';
-    }
-
-    function atualizarTotalCliente(lista) {
-      totalCanaisCliente.textContent = Array.isArray(lista) ? lista.length : 0;
-    }
-
-    function renderizarCanaisCliente(lista) {
-      listaCanais.innerHTML = '';
-      atualizarTotalCliente(canaisCliente);
-
-      if (!Array.isArray(lista) || lista.length === 0) {
-        listaCanais.innerHTML = '<div class="empty">Nenhum canal disponível.</div>';
-        return;
-      }
-
-      lista.slice().reverse().forEach((canal) => {
-        const logo = canal.logo && canal.logo.trim() !== ''
-          ? canal.logo
-          : 'https://via.placeholder.com/600x340?text=Sem+Logo';
-
-        const card = document.createElement('div');
-        card.className = 'channel-card';
-
-        card.innerHTML = `
-          <img class="channel-thumb" src="${logo}" alt="Logo do canal">
-          <div class="channel-body">
-            <div class="channel-meta">
-              <div class="channel-name">${canal.nome}</div>
-              <span class="status">online</span>
-            </div>
-
-            <div class="channel-info">
-              <strong>Categoria:</strong> ${canal.categoria}
-            </div>
-
-            <div class="channel-actions">
-              <button class="btn btn-watch" onclick="assistirCanalCliente(${JSON.stringify(canal.nome)}, ${JSON.stringify(canal.url)})">
-                Assistir
-              </button>
-            </div>
+          <div>
+            <label for="editNome">Nome do canal</label>
+            <input type="text" id="editNome" required>
           </div>
-        `;
 
-        listaCanais.appendChild(card);
-      });
-    }
+          <div>
+            <label for="editCategoria">Categoria</label>
+            <input type="text" id="editCategoria" required>
+          </div>
 
-    async function carregarCanaisCliente() {
-      try {
-        const response = await fetch('/api/canais');
-        const canais = await response.json();
+          <div>
+            <label for="editUrl">URL do canal</label>
+            <input type="text" id="editUrl" required>
+          </div>
 
-        canaisCliente = Array.isArray(canais) ? canais : [];
-        renderizarCanaisCliente(canaisCliente);
-      } catch (error) {
-        listaCanais.innerHTML = '<div class="empty">Erro ao carregar canais.</div>';
-        console.error('Erro ao carregar canais:', error);
-      }
-    }
+          <div>
+            <label for="editLogo">URL da logo</label>
+            <input type="text" id="editLogo">
+          </div>
 
-    if (buscaCliente) {
-      buscaCliente.addEventListener('input', () => {
-        const termo = buscaCliente.value.toLowerCase().trim();
+          <button type="submit" class="btn btn-primary">Salvar alterações</button>
+        </form>
+      </div>
+    </div>
+  </div>
 
-        const filtrados = canaisCliente.filter((canal) =>
-          canal.nome.toLowerCase().includes(termo) ||
-          canal.categoria.toLowerCase().includes(termo)
-        );
-
-        renderizarCanaisCliente(filtrados);
-      });
-    }
-
-    function assistirCanalCliente(nome, url) {
-      playerTitle.textContent = nome;
-      videoPlayer.src = url;
-      playerModal.classList.add('active');
-      videoPlayer.load();
-    }
-
-    function fecharPlayer() {
-      playerModal.classList.remove('active');
-      videoPlayer.pause();
-      videoPlayer.removeAttribute('src');
-      videoPlayer.load();
-    }
-
-    carregarCanaisCliente();
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

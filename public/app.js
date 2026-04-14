@@ -1,6 +1,8 @@
 const STORAGE_KEY = 'iptv_logged_in';
 const USER_TYPE_KEY = 'tipo_usuario';
 
+let hlsPlayer = null;
+
 async function login(event) {
   event.preventDefault();
 
@@ -41,7 +43,44 @@ async function login(event) {
   }
 }
 
+function destroyHls() {
+  if (hlsPlayer) {
+    hlsPlayer.destroy();
+    hlsPlayer = null;
+  }
+}
+
+function playVideoUrl(videoElement, url) {
+  if (!videoElement) return;
+
+  destroyHls();
+  videoElement.pause();
+  videoElement.removeAttribute('src');
+
+  if (url.includes('.m3u8')) {
+    if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+      videoElement.src = url;
+      videoElement.load();
+      videoElement.play().catch(() => {});
+    } else if (window.Hls && Hls.isSupported()) {
+      hlsPlayer = new Hls();
+      hlsPlayer.loadSource(url);
+      hlsPlayer.attachMedia(videoElement);
+      hlsPlayer.on(Hls.Events.MANIFEST_PARSED, function () {
+        videoElement.play().catch(() => {});
+      });
+    } else {
+      alert('Seu navegador não suporta esse tipo de canal.');
+    }
+  } else {
+    videoElement.src = url;
+    videoElement.load();
+    videoElement.play().catch(() => {});
+  }
+}
+
 function logout() {
+  destroyHls();
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(USER_TYPE_KEY);
   window.location.href = '/';
@@ -220,13 +259,13 @@ if (window.location.pathname.includes('admin.html')) {
   window.assistirCanal = function (nome, url) {
     if (!playerTitle || !videoPlayer || !playerModal) return;
     playerTitle.textContent = nome;
-    videoPlayer.src = url;
     playerModal.classList.add('active');
-    videoPlayer.load();
+    playVideoUrl(videoPlayer, url);
   };
 
   window.fecharPlayer = function () {
     if (!playerModal || !videoPlayer) return;
+    destroyHls();
     playerModal.classList.remove('active');
     videoPlayer.pause();
     videoPlayer.removeAttribute('src');
@@ -499,18 +538,16 @@ if (window.location.pathname.includes('cliente.html')) {
     });
   }
 
-  window.assistirCanalCliente = function(nome, url) {
+  window.assistirCanalCliente = function (nome, url) {
     if (!playerTitle || !videoPlayer || !playerModal) return;
-
     playerTitle.textContent = nome;
-    videoPlayer.src = url;
     playerModal.classList.add('active');
-    videoPlayer.load();
+    playVideoUrl(videoPlayer, url);
   };
 
-  window.fecharPlayer = function() {
+  window.fecharPlayer = function () {
     if (!playerModal || !videoPlayer) return;
-
+    destroyHls();
     playerModal.classList.remove('active');
     videoPlayer.pause();
     videoPlayer.removeAttribute('src');
