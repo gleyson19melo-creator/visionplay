@@ -215,7 +215,19 @@ if (window.location.pathname.includes('admin.html')) {
   async function carregarCanais() {
     try {
       const response = await fetch('/api/canais');
+
+      if (response.status === 401) {
+        window.location.href = '/';
+        return;
+      }
+
       const canais = await response.json();
+
+      if (!response.ok) {
+        showMessage('Não foi possível carregar os canais.', 'error');
+        return;
+      }
+
       canaisGlobais = Array.isArray(canais) ? canais : [];
       renderizarCanais(canaisGlobais);
     } catch (error) {
@@ -226,7 +238,19 @@ if (window.location.pathname.includes('admin.html')) {
   async function carregarUsuarios() {
     try {
       const response = await fetch('/api/usuarios');
+
+      if (response.status === 401) {
+        window.location.href = '/';
+        return;
+      }
+
       const usuarios = await response.json();
+
+      if (!response.ok) {
+        showUserMessage('Não foi possível carregar os usuários.', 'error');
+        return;
+      }
+
       renderizarUsuarios(usuarios);
     } catch (error) {
       showUserMessage('Erro ao carregar usuários.', 'error');
@@ -289,6 +313,11 @@ if (window.location.pathname.includes('admin.html')) {
       const response = await fetch(`/api/canais/${id}`, { method: 'DELETE' });
       const data = await response.json();
 
+      if (response.status === 401) {
+        window.location.href = '/';
+        return;
+      }
+
       if (!response.ok) {
         showMessage(data.error || 'Erro ao excluir canal.', 'error');
         return;
@@ -305,6 +334,11 @@ if (window.location.pathname.includes('admin.html')) {
     try {
       const response = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
       const data = await response.json();
+
+      if (response.status === 401) {
+        window.location.href = '/';
+        return;
+      }
 
       if (!response.ok) {
         showUserMessage(data.error || 'Erro ao excluir usuário.', 'error');
@@ -337,6 +371,11 @@ if (window.location.pathname.includes('admin.html')) {
         });
 
         const data = await response.json();
+
+        if (response.status === 401) {
+          window.location.href = '/';
+          return;
+        }
 
         if (!response.ok) {
           showMessage(data.error || 'Erro ao adicionar canal.', 'error');
@@ -374,6 +413,11 @@ if (window.location.pathname.includes('admin.html')) {
 
         const data = await response.json();
 
+        if (response.status === 401) {
+          window.location.href = '/';
+          return;
+        }
+
         if (!response.ok) {
           showMessage(data.error || 'Erro ao editar canal.', 'error');
           return;
@@ -406,6 +450,11 @@ if (window.location.pathname.includes('admin.html')) {
         });
 
         const data = await response.json();
+
+        if (response.status === 401) {
+          window.location.href = '/';
+          return;
+        }
 
         if (!response.ok) {
           showUserMessage(data.error || 'Erro ao adicionar usuário.', 'error');
@@ -528,7 +577,20 @@ if (window.location.pathname.includes('cliente.html')) {
   async function carregarCanaisCliente() {
     try {
       const response = await fetch('/api/canais');
+
+      if (response.status === 401) {
+        window.location.href = '/';
+        return;
+      }
+
       const canais = await response.json();
+
+      if (!response.ok) {
+        if (listaCanais) {
+          listaCanais.innerHTML = '<div class="empty">Não foi possível carregar os conteúdos.</div>';
+        }
+        return;
+      }
 
       canaisCliente = Array.isArray(canais) ? canais : [];
       aplicarFiltros();
