@@ -132,20 +132,16 @@ app.get('/proxy-hls', (req, res) => {
       const rewritten = lines.map((line) => {
         const trimmed = line.trim();
 
-        // Mantém comentários e linhas vazias
         if (!trimmed || trimmed.startsWith('#')) {
           return line;
         }
 
-        // Reescreve cada segmento/subplaylist para passar pelo proxy
         const absoluteUrl = buildAbsoluteUrl(targetUrl, trimmed);
 
-        // Se for outra playlist .m3u8, volta para proxy-hls
         if (absoluteUrl.includes('.m3u8')) {
           return `/proxy-hls?url=${encodeURIComponent(absoluteUrl)}`;
         }
 
-        // Segmentos .ts, .aac, .key, etc.
         return `/proxy-segment?url=${encodeURIComponent(absoluteUrl)}`;
       });
 
@@ -273,7 +269,7 @@ app.get('/api/canais', requireAuth, (req, res) => {
 });
 
 app.post('/api/canais', requireAdmin, (req, res) => {
-  const { nome, categoria, url, logo } = req.body;
+  const { nome, categoria, url, logo, sinopse, oficial } = req.body;
 
   if (!nome || !categoria || !url) {
     return res.status(400).json({
@@ -289,6 +285,8 @@ app.post('/api/canais', requireAdmin, (req, res) => {
     categoria,
     url,
     logo: logo || '',
+    sinopse: sinopse || '',
+    oficial: oficial || '',
     status: 'online',
     criadoEm: new Date().toISOString()
   };
@@ -313,7 +311,10 @@ app.put('/api/canais/:id', requireAdmin, (req, res) => {
 
   channels[index] = {
     ...channels[index],
-    ...req.body
+    ...req.body,
+    logo: req.body.logo ?? channels[index].logo,
+    sinopse: req.body.sinopse ?? channels[index].sinopse,
+    oficial: req.body.oficial ?? channels[index].oficial
   };
 
   saveJson(CHANNELS_FILE, channels);

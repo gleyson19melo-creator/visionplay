@@ -12,7 +12,7 @@ async function login(event) {
   try {
     const response = await fetch('/api/login', {
       method: 'POST',
-      credentials: 'include', // envia cookie/sessão
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuario, senha })
     });
@@ -27,10 +27,8 @@ async function login(event) {
       return;
     }
 
-    // limpa qualquer dado antigo do navegador
     localStorage.clear();
 
-    // redireciona conforme o tipo do usuário
     if (data.tipo === 'admin') {
       window.location.href = '/admin.html';
     } else {
@@ -56,12 +54,10 @@ function destroyHls() {
 function tryPlay(videoElement) {
   if (!videoElement) return;
 
-  // Alguns navegadores só permitem iniciar mutado
   videoElement.muted = true;
 
   videoElement.play()
     .then(() => {
-      // Depois que iniciar, tira o mute
       videoElement.muted = false;
     })
     .catch((error) => {
@@ -72,34 +68,27 @@ function tryPlay(videoElement) {
 // Reproduz vídeo ou embed
 function playVideoUrl(videoElement, url) {
   const embedFrame = document.getElementById('embedFrame');
-  if (!videoElement) return;
+  if (!videoElement || !url) return;
 
-  // Limpa player anterior
   destroyHls();
 
-  // Esconde iframe por padrão
   if (embedFrame) {
     embedFrame.style.display = 'none';
     embedFrame.src = '';
   }
 
-  // Mostra player de vídeo
   videoElement.style.display = 'block';
   videoElement.pause();
   videoElement.removeAttribute('src');
 
-  // Usa URL final com proxy quando necessário
   let finalUrl = url;
 
-  // Se for playlist HLS, passa pelo proxy HLS completo
   if (url.includes('.m3u8')) {
     finalUrl = `/proxy-hls?url=${encodeURIComponent(url)}`;
   } else if (url.startsWith('http://')) {
-    // Outros arquivos HTTP comuns passam pelo proxy de segmento
     finalUrl = `/proxy-segment?url=${encodeURIComponent(url)}`;
   }
 
-  // Se for link de embed, abre no iframe
   if (url.includes('/embed/') || url.includes('embedplayapi.site')) {
     videoElement.style.display = 'none';
 
@@ -110,15 +99,11 @@ function playVideoUrl(videoElement, url) {
     return;
   }
 
-  // Se for HLS (.m3u8)
   if (url.includes('.m3u8')) {
-    // Safari/iPhone e alguns navegadores suportam HLS direto
     if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
       videoElement.src = finalUrl;
       videoElement.load();
       tryPlay(videoElement);
-
-    // Outros navegadores usam Hls.js
     } else if (window.Hls && Hls.isSupported()) {
       hlsPlayer = new Hls();
       hlsPlayer.loadSource(finalUrl);
@@ -137,7 +122,6 @@ function playVideoUrl(videoElement, url) {
     return;
   }
 
-  // Se for mp4 ou outro link direto
   videoElement.src = finalUrl;
   videoElement.load();
   tryPlay(videoElement);
@@ -226,8 +210,8 @@ if (window.location.pathname.includes('admin.html')) {
         ? canal.logo
         : 'https://via.placeholder.com/600x340?text=Sem+Logo';
 
-      const nomeSeguro = String(canal.nome).replace(/'/g, "\\'");
-      const urlSegura = String(canal.url).replace(/'/g, "\\'");
+      const nomeSeguro = String(canal.nome || '').replace(/'/g, "\\'");
+      const urlSegura = String(canal.url || '').replace(/'/g, "\\'");
       const canalJson = JSON.stringify(canal).replace(/'/g, "&apos;");
 
       const card = document.createElement('div');
@@ -236,13 +220,15 @@ if (window.location.pathname.includes('admin.html')) {
         <img class="channel-thumb" src="${logo}" alt="Logo do canal" />
         <div class="channel-body">
           <div class="channel-meta">
-            <div class="channel-name">${canal.nome}</div>
-            <span class="status">online</span>
+            <div class="channel-name">${canal.nome || 'Sem nome'}</div>
+            <span class="status">${canal.categoria || 'Sem categoria'}</span>
           </div>
-          <div class="channel-info"><strong>Categoria:</strong> ${canal.categoria}</div>
-          <div class="channel-info"><strong>URL:</strong> ${canal.url}</div>
+          <div class="channel-info"><strong>Categoria:</strong> ${canal.categoria || 'Sem categoria'}</div>
+          <div class="channel-info"><strong>Sinopse:</strong> ${canal.sinopse || 'Sem sinopse'}</div>
+          <div class="channel-info"><strong>Trailer:</strong> ${canal.url || 'Sem URL'}</div>
+          <div class="channel-info"><strong>Oficial:</strong> ${canal.oficial || 'Sem link oficial'}</div>
           <div class="channel-actions">
-            <button class="btn btn-watch" onclick="assistirCanal('${nomeSeguro}', '${urlSegura}')">Assistir</button>
+            <button class="btn btn-watch" onclick="assistirCanal('${nomeSeguro}', '${urlSegura}')">Trailer</button>
             <button class="btn btn-edit" onclick='abrirEdicao(${canalJson})'>Editar</button>
             <button class="btn btn-danger" onclick="removerCanal(${canal.id})">Excluir</button>
           </div>
@@ -332,19 +318,17 @@ if (window.location.pathname.includes('admin.html')) {
     }
   }
 
-  // Filtro de busca do admin
   if (busca) {
     busca.addEventListener('input', () => {
       const termo = busca.value.toLowerCase().trim();
       const filtrados = canaisGlobais.filter((canal) =>
-        canal.nome.toLowerCase().includes(termo) ||
-        canal.categoria.toLowerCase().includes(termo)
+        (canal.nome || '').toLowerCase().includes(termo) ||
+        (canal.categoria || '').toLowerCase().includes(termo)
       );
       renderizarCanais(filtrados);
     });
   }
 
-  // Abre player
   window.assistirCanal = function (nome, url) {
     if (!playerTitle || !videoPlayer || !playerModal) return;
     playerTitle.textContent = nome;
@@ -352,7 +336,6 @@ if (window.location.pathname.includes('admin.html')) {
     playVideoUrl(videoPlayer, url);
   };
 
-  // Fecha player
   window.fecharPlayer = function () {
     const embedFrame = document.getElementById('embedFrame');
 
@@ -372,7 +355,6 @@ if (window.location.pathname.includes('admin.html')) {
     videoPlayer.load();
   };
 
-  // Abre modal de edição
   window.abrirEdicao = function (canal) {
     if (!editModal) return;
 
@@ -381,14 +363,20 @@ if (window.location.pathname.includes('admin.html')) {
     const editCategoria = document.getElementById('editCategoria');
     const editUrl = document.getElementById('editUrl');
     const editLogo = document.getElementById('editLogo');
+    const editSinopse = document.getElementById('editSinopse');
+    const editOficial = document.getElementById('editOficial');
 
     if (!editId || !editNome || !editCategoria || !editUrl || !editLogo) return;
 
     editId.value = canal.id;
-    editNome.value = canal.nome;
-    editCategoria.value = canal.categoria;
-    editUrl.value = canal.url;
+    editNome.value = canal.nome || '';
+    editCategoria.value = canal.categoria || '';
+    editUrl.value = canal.url || '';
     editLogo.value = canal.logo || '';
+
+    if (editSinopse) editSinopse.value = canal.sinopse || '';
+    if (editOficial) editOficial.value = canal.oficial || '';
+
     editModal.classList.add('active');
   };
 
@@ -397,7 +385,6 @@ if (window.location.pathname.includes('admin.html')) {
     editModal.classList.remove('active');
   };
 
-  // Remove conteúdo
   window.removerCanal = async function (id) {
     try {
       const response = await fetch(`/api/canais/${id}`, {
@@ -423,7 +410,6 @@ if (window.location.pathname.includes('admin.html')) {
     }
   };
 
-  // Remove usuário
   window.removerUsuario = async function (id) {
     try {
       const response = await fetch(`/api/usuarios/${id}`, {
@@ -449,7 +435,6 @@ if (window.location.pathname.includes('admin.html')) {
     }
   };
 
-  // Adiciona conteúdo
   if (form) {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -458,7 +443,9 @@ if (window.location.pathname.includes('admin.html')) {
         nome: document.getElementById('nome')?.value,
         categoria: document.getElementById('categoria')?.value,
         url: document.getElementById('url')?.value,
-        logo: document.getElementById('logo')?.value
+        logo: document.getElementById('logo')?.value,
+        sinopse: document.getElementById('sinopse')?.value,
+        oficial: document.getElementById('oficial')?.value
       };
 
       try {
@@ -490,7 +477,6 @@ if (window.location.pathname.includes('admin.html')) {
     });
   }
 
-  // Salva edição
   if (editForm) {
     editForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -501,7 +487,9 @@ if (window.location.pathname.includes('admin.html')) {
         nome: document.getElementById('editNome')?.value,
         categoria: document.getElementById('editCategoria')?.value,
         url: document.getElementById('editUrl')?.value,
-        logo: document.getElementById('editLogo')?.value
+        logo: document.getElementById('editLogo')?.value,
+        sinopse: document.getElementById('editSinopse')?.value,
+        oficial: document.getElementById('editOficial')?.value
       };
 
       try {
@@ -533,7 +521,6 @@ if (window.location.pathname.includes('admin.html')) {
     });
   }
 
-  // Adiciona usuário
   if (userForm) {
     userForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -613,8 +600,9 @@ if (window.location.pathname.includes('cliente.html')) {
         ? canal.logo
         : 'https://via.placeholder.com/600x340?text=Sem+Logo';
 
-      const nomeSeguro = String(canal.nome).replace(/'/g, "\\'");
-      const urlSegura = String(canal.url).replace(/'/g, "\\'");
+      const nomeSeguro = String(canal.nome || '').replace(/'/g, "\\'");
+      const urlSegura = String(canal.url || '').replace(/'/g, "\\'");
+      const linkOficial = canal.oficial?.trim() ? canal.oficial : '#';
 
       const card = document.createElement('div');
       card.className = 'channel-card';
@@ -623,18 +611,22 @@ if (window.location.pathname.includes('cliente.html')) {
         <img class="channel-thumb" src="${logo}" alt="Logo do canal">
         <div class="channel-body">
           <div class="channel-meta">
-            <div class="channel-name">${canal.nome}</div>
-            <span class="status">online</span>
+            <div class="channel-name">${canal.nome || 'Sem nome'}</div>
+            <span class="status">${canal.categoria || 'Sem categoria'}</span>
           </div>
 
           <div class="channel-info">
-            <strong>Categoria:</strong> ${canal.categoria}
+            <strong>Sinopse:</strong> ${canal.sinopse || 'Sem sinopse'}
           </div>
 
           <div class="channel-actions">
             <button class="btn btn-watch" onclick="assistirCanalCliente('${nomeSeguro}', '${urlSegura}')">
-              Assistir
+              Trailer
             </button>
+
+            <a class="btn btn-edit" href="${linkOficial}" target="_blank" rel="noopener noreferrer">
+              Assistir Oficial
+            </a>
           </div>
         </div>
       `;
@@ -643,14 +635,13 @@ if (window.location.pathname.includes('cliente.html')) {
     });
   }
 
-  // Aplica busca + categoria
   function aplicarFiltros() {
     const termo = buscaCliente ? buscaCliente.value.toLowerCase().trim() : '';
 
     const filtrados = canaisCliente.filter((canal) => {
       const bateBusca =
-        canal.nome.toLowerCase().includes(termo) ||
-        canal.categoria.toLowerCase().includes(termo);
+        (canal.nome || '').toLowerCase().includes(termo) ||
+        (canal.categoria || '').toLowerCase().includes(termo);
 
       const bateCategoria =
         categoriaAtual === 'Todos' || canal.categoria === categoriaAtual;
@@ -661,7 +652,6 @@ if (window.location.pathname.includes('cliente.html')) {
     renderizarCanaisCliente(filtrados);
   }
 
-  // Muda categoria pelo botão
   window.filtrarCategoria = function (categoria) {
     categoriaAtual = categoria;
 
@@ -679,7 +669,6 @@ if (window.location.pathname.includes('cliente.html')) {
     aplicarFiltros();
   };
 
-  // Carrega conteúdos da API
   async function carregarCanaisCliente() {
     try {
       const response = await fetch('/api/canais', {
@@ -709,14 +698,12 @@ if (window.location.pathname.includes('cliente.html')) {
     }
   }
 
-  // Busca ao digitar
   if (buscaCliente) {
     buscaCliente.addEventListener('input', () => {
       aplicarFiltros();
     });
   }
 
-  // Abre player do cliente
   window.assistirCanalCliente = function (nome, url) {
     if (!playerTitle || !videoPlayer || !playerModal) return;
     playerTitle.textContent = nome;
@@ -724,7 +711,6 @@ if (window.location.pathname.includes('cliente.html')) {
     playVideoUrl(videoPlayer, url);
   };
 
-  // Fecha player do cliente
   window.fecharPlayer = function () {
     const embedFrame = document.getElementById('embedFrame');
 
