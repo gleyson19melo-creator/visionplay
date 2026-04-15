@@ -2,6 +2,8 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const session = require('express-session');
+const http = require('http');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +30,7 @@ app.use(session({
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Lê arquivo JSON e garante que ele exista
 function readJson(filePath) {
   try {
     if (!fs.existsSync(filePath)) {
@@ -45,10 +48,12 @@ function readJson(filePath) {
   }
 }
 
+// Salva dados no arquivo JSON
 function saveJson(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
+// Exige usuário logado
 function requireAuth(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Não autenticado.' });
@@ -56,6 +61,7 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Exige admin logado
 function requireAdmin(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Não autenticado.' });
@@ -68,8 +74,42 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-/* LOGIN */
+/* =========================
+   PROXY PARA STREAMS HTTP
+========================= */
+app.get('/proxy-stream', (req, res) => {
+  const streamUrl = req.query.url;
 
+  if (!streamUrl) {
+    return res.status(400).send('URL não informada.');
+  }
+
+  const client = streamUrl.startsWith('https://') ? https : http;
+
+  client.get(streamUrl, (streamRes) => {
+    if (streamRes.statusCode >= 400) {
+      return res.status(streamRes.statusCode).send('Erro ao carregar stream.');
+    }
+
+    // libera acesso
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    // repassa content-type do stream original
+    const contentType = streamRes.headers['content-type'];
+    if (contentType) {
+      res.setHeader('Content-Type', contentType);
+    }
+
+    streamRes.pipe(res);
+  }).on('error', (error) => {
+    console.error('Erro no proxy:', error.message);
+    res.status(500).send('Erro ao processar proxy.');
+  });
+});
+
+/* =========================
+   LOGIN
+========================= */
 app.post('/api/login', (req, res) => {
   const { usuario, senha } = req.body;
   const users = readJson(USERS_FILE);
@@ -101,8 +141,9 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
-/* USUÁRIOS */
-
+/* =========================
+   USUÁRIOS
+========================= */
 app.get('/api/usuarios', requireAdmin, (req, res) => {
   const users = readJson(USERS_FILE).map((user) => ({
     id: user.id,
@@ -144,8 +185,9 @@ app.delete('/api/usuarios/:id', requireAdmin, (req, res) => {
   res.json({ message: 'Usuário removido com sucesso.' });
 });
 
-/* CANAIS */
-
+/* =========================
+   CONTEÚDOS
+========================= */
 app.get('/api/canais', requireAuth, (req, res) => {
   res.json(readJson(CHANNELS_FILE));
 });
@@ -209,8 +251,9 @@ app.delete('/api/canais/:id', requireAdmin, (req, res) => {
   res.json({ message: 'Conteúdo removido com sucesso.' });
 });
 
-/* PÁGINAS */
-
+/* =========================
+   PÁGINAS
+========================= */
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
