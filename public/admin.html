@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vision Play | Painel Administrativo</title>
   <link rel="stylesheet" href="/style.css">
 </head>
+
 <body>
   <div class="container">
 
@@ -155,12 +157,8 @@
       <div class="modal-content">
         <video id="videoPlayer" controls playsinline webkit-playsinline style="display:block;"></video>
 
-        <iframe
-          id="embedFrame"
-          style="display:none; width:100%; height:70vh; border:none; border-radius:16px;"
-          allowfullscreen
-          referrerpolicy="origin"
-        ></iframe>
+        <iframe id="embedFrame" style="display:none; width:100%; height:70vh; border:none; border-radius:16px;"
+          allowfullscreen referrerpolicy="origin"></iframe>
 
         <p class="player-note">Player com suporte para MP4, HLS (.m3u8) e conteúdo incorporado.</p>
       </div>
@@ -189,6 +187,7 @@
               <option value="Filme">Filme</option>
               <option value="Série">Série</option>
               <option value="Anime">Anime</option>
+              <option VALUE="novidade">Trailer</option>
             </select>
           </div>
 
@@ -221,4 +220,5 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="/app.js"></script>
 </body>
+
 </html>
