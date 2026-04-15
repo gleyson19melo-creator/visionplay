@@ -55,15 +55,16 @@ body {
 
 /* LOGO */
 .site-logo{
-  width: 110px;
-  height: 110px;
-  object-fit: contain;
+  width: 190px;
+  height: 190px;
+  object-fit: cover;
   display: block;
-  margin: 0 auto 14px;
-  border-radius: 24px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+  margin: 0 auto 18px;
+  border-radius: 28px;
+  padding: 8px;
+  background: rgba(255,255,255,0.04);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.35);
 }
-
 .login-card h1 {
   font-size: 34px;
   margin-bottom: 8px;
