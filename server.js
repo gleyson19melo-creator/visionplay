@@ -4,6 +4,7 @@ const path = require('path');
 const session = require('express-session');
 const http = require('http');
 const https = require('https');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -78,7 +79,6 @@ function requireAdmin(req, res, next) {
    FUNÇÕES DO PROXY HLS
 ========================= */
 
-// Faz requisição remota http/https
 function fetchRemote(url, callback) {
   const client = url.startsWith('https://') ? https : http;
 
@@ -89,7 +89,6 @@ function fetchRemote(url, callback) {
   });
 }
 
-// Constrói URL absoluta a partir de base + relativo
 function buildAbsoluteUrl(baseUrl, relativePath) {
   try {
     return new URL(relativePath, baseUrl).toString();
@@ -102,7 +101,6 @@ function buildAbsoluteUrl(baseUrl, relativePath) {
    PROXY HLS COMPLETO
 ========================= */
 
-// Reescreve playlist .m3u8 para passar tudo pelo servidor
 app.get('/proxy-hls', (req, res) => {
   const targetUrl = req.query.url;
 
@@ -152,7 +150,6 @@ app.get('/proxy-hls', (req, res) => {
   });
 });
 
-// Repassa segmentos do stream
 app.get('/proxy-segment', (req, res) => {
   const targetUrl = req.query.url;
 
@@ -184,15 +181,38 @@ app.get('/proxy-segment', (req, res) => {
    LOGIN
 ========================= */
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { usuario, senha } = req.body;
+
+  if (!usuario || !senha) {
+    return res.status(400).json({ error: 'Preencha usuário e senha.' });
+  }
+
   const users = readJson(USERS_FILE);
+  const userIndex = users.findIndex((user) => user.usuario === usuario);
 
-  const foundUser = users.find(
-    (user) => user.usuario === usuario && user.senha === senha
-  );
+  if (userIndex === -1) {
+    return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+  }
 
-  if (!foundUser) {
+  const foundUser = users[userIndex];
+  let senhaValida = false;
+
+  // Caso novo: senha com hash bcrypt
+  if (typeof foundUser.senha === 'string' && foundUser.senha.startsWith('$2')) {
+    senhaValida = await bcrypt.compare(senha, foundUser.senha);
+  } else {
+    // Caso antigo: senha salva em texto puro
+    senhaValida = foundUser.senha === senha;
+
+    // Migra automaticamente para hash se login antigo deu certo
+    if (senhaValida) {
+      users[userIndex].senha = await bcrypt.hash(senha, 10);
+      saveJson(USERS_FILE, users);
+    }
+  }
+
+  if (!senhaValida) {
     return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
   }
 
@@ -219,24 +239,34 @@ app.post('/api/logout', (req, res) => {
    CADASTRO E RECUPERAÇÃO
 ========================= */
 
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
   const { usuario, senha } = req.body;
 
   if (!usuario || !senha) {
     return res.status(400).json({ error: 'Preencha usuário e senha.' });
   }
 
+  if (usuario.trim().length < 3) {
+    return res.status(400).json({ error: 'O usuário deve ter pelo menos 3 caracteres.' });
+  }
+
+  if (senha.length < 6) {
+    return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres.' });
+  }
+
   const users = readJson(USERS_FILE);
 
-  const existe = users.find((user) => user.usuario === usuario);
+  const existe = users.find((user) => user.usuario.toLowerCase() === usuario.toLowerCase());
   if (existe) {
     return res.status(400).json({ error: 'Esse usuário já existe.' });
   }
 
+  const senhaHash = await bcrypt.hash(senha, 10);
+
   users.push({
     id: Date.now(),
-    usuario,
-    senha,
+    usuario: usuario.trim(),
+    senha: senhaHash,
     tipo: 'cliente'
   });
 
@@ -245,11 +275,15 @@ app.post('/api/register', (req, res) => {
   res.status(201).json({ message: 'Conta criada com sucesso.' });
 });
 
-app.post('/api/reset-password', (req, res) => {
+app.post('/api/reset-password', async (req, res) => {
   const { usuario, novaSenha } = req.body;
 
   if (!usuario || !novaSenha) {
     return res.status(400).json({ error: 'Preencha usuário e nova senha.' });
+  }
+
+  if (novaSenha.length < 6) {
+    return res.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres.' });
   }
 
   const users = readJson(USERS_FILE);
@@ -259,7 +293,7 @@ app.post('/api/reset-password', (req, res) => {
     return res.status(404).json({ error: 'Usuário não encontrado.' });
   }
 
-  users[index].senha = novaSenha;
+  users[index].senha = await bcrypt.hash(novaSenha, 10);
   saveJson(USERS_FILE, users);
 
   res.json({ message: 'Senha redefinida com sucesso.' });
@@ -279,7 +313,7 @@ app.get('/api/usuarios', requireAdmin, (req, res) => {
   res.json(users);
 });
 
-app.post('/api/usuarios', requireAdmin, (req, res) => {
+app.post('/api/usuarios', requireAdmin, async (req, res) => {
   const { usuario, senha, tipo } = req.body;
 
   if (!usuario || !senha || !tipo) {
@@ -288,10 +322,17 @@ app.post('/api/usuarios', requireAdmin, (req, res) => {
 
   const users = readJson(USERS_FILE);
 
+  const existe = users.find((user) => user.usuario.toLowerCase() === usuario.toLowerCase());
+  if (existe) {
+    return res.status(400).json({ error: 'Esse usuário já existe.' });
+  }
+
+  const senhaHash = await bcrypt.hash(senha, 10);
+
   users.push({
     id: Date.now(),
-    usuario,
-    senha,
+    usuario: usuario.trim(),
+    senha: senhaHash,
     tipo
   });
 
