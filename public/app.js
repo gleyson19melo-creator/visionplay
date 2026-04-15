@@ -56,12 +56,12 @@ function destroyHls() {
 function tryPlay(videoElement) {
   if (!videoElement) return;
 
-  // alguns navegadores só permitem iniciar mutado
+  // Alguns navegadores só permitem iniciar mutado
   videoElement.muted = true;
 
   videoElement.play()
     .then(() => {
-      // depois que iniciou, tira o mute
+      // Depois que iniciar, tira o mute
       videoElement.muted = false;
     })
     .catch((error) => {
@@ -74,21 +74,32 @@ function playVideoUrl(videoElement, url) {
   const embedFrame = document.getElementById('embedFrame');
   if (!videoElement) return;
 
-  // limpa player anterior
+  // Limpa player anterior
   destroyHls();
 
-  // esconde iframe por padrão
+  // Esconde iframe por padrão
   if (embedFrame) {
     embedFrame.style.display = 'none';
     embedFrame.src = '';
   }
 
-  // mostra o player de vídeo
+  // Mostra player de vídeo
   videoElement.style.display = 'block';
   videoElement.pause();
   videoElement.removeAttribute('src');
 
-  // se for link de embed, abre no iframe
+  // Usa URL final com proxy quando necessário
+  let finalUrl = url;
+
+  // Se for playlist HLS, passa pelo proxy HLS completo
+  if (url.includes('.m3u8')) {
+    finalUrl = `/proxy-hls?url=${encodeURIComponent(url)}`;
+  } else if (url.startsWith('http://')) {
+    // Outros arquivos HTTP comuns passam pelo proxy de segmento
+    finalUrl = `/proxy-segment?url=${encodeURIComponent(url)}`;
+  }
+
+  // Se for link de embed, abre no iframe
   if (url.includes('/embed/') || url.includes('embedplayapi.site')) {
     videoElement.style.display = 'none';
 
@@ -99,18 +110,18 @@ function playVideoUrl(videoElement, url) {
     return;
   }
 
-  // se for HLS (.m3u8)
+  // Se for HLS (.m3u8)
   if (url.includes('.m3u8')) {
-    // Safari/iPhone e alguns navegadores suportam direto
+    // Safari/iPhone e alguns navegadores suportam HLS direto
     if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-      videoElement.src = url;
+      videoElement.src = finalUrl;
       videoElement.load();
       tryPlay(videoElement);
 
-    // outros navegadores usam Hls.js
+    // Outros navegadores usam Hls.js
     } else if (window.Hls && Hls.isSupported()) {
       hlsPlayer = new Hls();
-      hlsPlayer.loadSource(url);
+      hlsPlayer.loadSource(finalUrl);
       hlsPlayer.attachMedia(videoElement);
 
       hlsPlayer.on(Hls.Events.MANIFEST_PARSED, function () {
@@ -126,8 +137,8 @@ function playVideoUrl(videoElement, url) {
     return;
   }
 
-  // se for mp4 ou outro link direto
-  videoElement.src = url;
+  // Se for mp4 ou outro link direto
+  videoElement.src = finalUrl;
   videoElement.load();
   tryPlay(videoElement);
 }
@@ -321,7 +332,7 @@ if (window.location.pathname.includes('admin.html')) {
     }
   }
 
-  // filtro de busca do admin
+  // Filtro de busca do admin
   if (busca) {
     busca.addEventListener('input', () => {
       const termo = busca.value.toLowerCase().trim();
@@ -333,7 +344,7 @@ if (window.location.pathname.includes('admin.html')) {
     });
   }
 
-  // abre player
+  // Abre player
   window.assistirCanal = function (nome, url) {
     if (!playerTitle || !videoPlayer || !playerModal) return;
     playerTitle.textContent = nome;
@@ -341,7 +352,7 @@ if (window.location.pathname.includes('admin.html')) {
     playVideoUrl(videoPlayer, url);
   };
 
-  // fecha player
+  // Fecha player
   window.fecharPlayer = function () {
     const embedFrame = document.getElementById('embedFrame');
 
@@ -361,7 +372,7 @@ if (window.location.pathname.includes('admin.html')) {
     videoPlayer.load();
   };
 
-  // abre modal de edição
+  // Abre modal de edição
   window.abrirEdicao = function (canal) {
     if (!editModal) return;
 
@@ -386,7 +397,7 @@ if (window.location.pathname.includes('admin.html')) {
     editModal.classList.remove('active');
   };
 
-  // remove conteúdo
+  // Remove conteúdo
   window.removerCanal = async function (id) {
     try {
       const response = await fetch(`/api/canais/${id}`, {
@@ -412,7 +423,7 @@ if (window.location.pathname.includes('admin.html')) {
     }
   };
 
-  // remove usuário
+  // Remove usuário
   window.removerUsuario = async function (id) {
     try {
       const response = await fetch(`/api/usuarios/${id}`, {
@@ -438,7 +449,7 @@ if (window.location.pathname.includes('admin.html')) {
     }
   };
 
-  // adiciona conteúdo
+  // Adiciona conteúdo
   if (form) {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -479,7 +490,7 @@ if (window.location.pathname.includes('admin.html')) {
     });
   }
 
-  // salva edição
+  // Salva edição
   if (editForm) {
     editForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -522,7 +533,7 @@ if (window.location.pathname.includes('admin.html')) {
     });
   }
 
-  // adiciona usuário
+  // Adiciona usuário
   if (userForm) {
     userForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -632,7 +643,7 @@ if (window.location.pathname.includes('cliente.html')) {
     });
   }
 
-  // aplica busca + categoria
+  // Aplica busca + categoria
   function aplicarFiltros() {
     const termo = buscaCliente ? buscaCliente.value.toLowerCase().trim() : '';
 
@@ -650,7 +661,7 @@ if (window.location.pathname.includes('cliente.html')) {
     renderizarCanaisCliente(filtrados);
   }
 
-  // muda categoria pelo botão
+  // Muda categoria pelo botão
   window.filtrarCategoria = function (categoria) {
     categoriaAtual = categoria;
 
@@ -668,7 +679,7 @@ if (window.location.pathname.includes('cliente.html')) {
     aplicarFiltros();
   };
 
-  // carrega conteúdos da API
+  // Carrega conteúdos da API
   async function carregarCanaisCliente() {
     try {
       const response = await fetch('/api/canais', {
@@ -698,14 +709,14 @@ if (window.location.pathname.includes('cliente.html')) {
     }
   }
 
-  // busca ao digitar
+  // Busca ao digitar
   if (buscaCliente) {
     buscaCliente.addEventListener('input', () => {
       aplicarFiltros();
     });
   }
 
-  // abre player do cliente
+  // Abre player do cliente
   window.assistirCanalCliente = function (nome, url) {
     if (!playerTitle || !videoPlayer || !playerModal) return;
     playerTitle.textContent = nome;
@@ -713,7 +724,7 @@ if (window.location.pathname.includes('cliente.html')) {
     playVideoUrl(videoPlayer, url);
   };
 
-  // fecha player do cliente
+  // Fecha player do cliente
   window.fecharPlayer = function () {
     const embedFrame = document.getElementById('embedFrame');
 

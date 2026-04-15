@@ -1,743 +1,358 @@
-// Controla a instância do player HLS
-let hlsPlayer = null;
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const session = require('express-session');
+const http = require('http');
+const https = require('https');
 
-// Faz login no sistema
-async function login(event) {
-  event.preventDefault();
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-  const usuario = document.getElementById('loginUser')?.value.trim();
-  const senha = document.getElementById('loginPass')?.value.trim();
-  const loginMessage = document.getElementById('loginMessage');
+const CHANNELS_FILE = path.join(__dirname, 'canais.json');
+const USERS_FILE = path.join(__dirname, 'usuarios.json');
 
+app.set('trust proxy', 1);
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use(session({
+  secret: 'visionplay_sessao_secreta_2026',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    maxAge: 1000 * 60 * 60 * 12
+  }
+}));
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Lê JSON e cria arquivo se não existir
+function readJson(filePath) {
   try {
-    const response = await fetch('/api/login', {
-      method: 'POST',
-      credentials: 'include', // envia cookie/sessão
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario, senha })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (loginMessage) {
-        loginMessage.textContent = data.error || 'Erro no login.';
-        loginMessage.className = 'message error';
-      }
-      return;
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, '[]', 'utf-8');
     }
 
-    // limpa qualquer dado antigo do navegador
-    localStorage.clear();
+    const raw = fs.readFileSync(filePath, 'utf-8').trim();
+    if (!raw) return [];
 
-    // redireciona conforme o tipo do usuário
-    if (data.tipo === 'admin') {
-      window.location.href = '/admin.html';
-    } else {
-      window.location.href = '/cliente.html';
-    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    if (loginMessage) {
-      loginMessage.textContent = 'Erro ao conectar com o servidor.';
-      loginMessage.className = 'message error';
-    }
+    console.error(`Erro ao ler ${filePath}:`, error.message);
+    return [];
   }
 }
 
-// Destrói player HLS antigo para evitar conflito
-function destroyHls() {
-  if (hlsPlayer) {
-    hlsPlayer.destroy();
-    hlsPlayer = null;
-  }
+// Salva JSON
+function saveJson(filePath, data) {
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-// Tenta reproduzir vídeo contornando bloqueio de autoplay
-function tryPlay(videoElement) {
-  if (!videoElement) return;
-
-  // alguns navegadores só permitem iniciar mutado
-  videoElement.muted = true;
-
-  videoElement.play()
-    .then(() => {
-      // depois que iniciou, tira o mute
-      videoElement.muted = false;
-    })
-    .catch((error) => {
-      console.log('Erro ao reproduzir vídeo:', error);
-    });
+// Exige login
+function requireAuth(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Não autenticado.' });
+  }
+  next();
 }
 
-// Reproduz vídeo ou embed
-function playVideoUrl(videoElement, url) {
-  const embedFrame = document.getElementById('embedFrame');
-  if (!videoElement) return;
-
-  // limpa player anterior
-  destroyHls();
-
-  // esconde iframe por padrão
-  if (embedFrame) {
-    embedFrame.style.display = 'none';
-    embedFrame.src = '';
+// Exige admin
+function requireAdmin(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Não autenticado.' });
   }
 
-  // mostra o player de vídeo
-  videoElement.style.display = 'block';
-  videoElement.pause();
-  videoElement.removeAttribute('src');
-
-  // se a URL vier em http://, passa pelo proxy do servidor
-  let finalUrl = url;
-  if (url.startsWith('http://')) {
-    finalUrl = `/proxy-stream?url=${encodeURIComponent(url)}`;
+  if (req.session.user.tipo !== 'admin') {
+    return res.status(403).json({ error: 'Acesso restrito ao admin.' });
   }
 
-  // se for link de embed, abre no iframe
-  if (finalUrl.includes('/embed/') || finalUrl.includes('embedplayapi.site')) {
-    videoElement.style.display = 'none';
-
-    if (embedFrame) {
-      embedFrame.style.display = 'block';
-      embedFrame.src = finalUrl;
-    }
-    return;
-  }
-
-  // se for HLS (.m3u8)
-  if (finalUrl.includes('.m3u8')) {
-    // Safari/iPhone e alguns navegadores suportam direto
-    if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-      videoElement.src = finalUrl;
-      videoElement.load();
-      tryPlay(videoElement);
-
-    // outros navegadores usam Hls.js
-    } else if (window.Hls && Hls.isSupported()) {
-      hlsPlayer = new Hls();
-      hlsPlayer.loadSource(finalUrl);
-      hlsPlayer.attachMedia(videoElement);
-
-      hlsPlayer.on(Hls.Events.MANIFEST_PARSED, function () {
-        tryPlay(videoElement);
-      });
-
-      hlsPlayer.on(Hls.Events.ERROR, function (event, data) {
-        console.log('Erro no HLS:', data);
-      });
-    } else {
-      alert('Seu navegador não suporta esse tipo de vídeo.');
-    }
-    return;
-  }
-
-  // se for mp4 ou outro link direto
-  videoElement.src = finalUrl;
-  videoElement.load();
-  tryPlay(videoElement);
+  next();
 }
 
-// Faz logout do sistema
-async function logout() {
-  destroyHls();
+/* =========================
+   FUNÇÕES DO PROXY HLS
+========================= */
 
+// Faz requisição remota http/https
+function fetchRemote(url, callback) {
+  const client = url.startsWith('https://') ? https : http;
+
+  client.get(url, (remoteRes) => {
+    callback(null, remoteRes);
+  }).on('error', (error) => {
+    callback(error);
+  });
+}
+
+// Constrói URL absoluta a partir de base + relativo
+function buildAbsoluteUrl(baseUrl, relativePath) {
   try {
-    await fetch('/api/logout', {
-      method: 'POST',
-      credentials: 'include'
-    });
-  } catch (error) {}
-
-  localStorage.clear();
-  window.location.href = '/';
-}
-
-// Ativa login se estiver na tela inicial
-if (document.getElementById('loginForm')) {
-  document.getElementById('loginForm').addEventListener('submit', login);
+    return new URL(relativePath, baseUrl).toString();
+  } catch (error) {
+    return relativePath;
+  }
 }
 
 /* =========================
-   ÁREA ADMIN
+   PROXY HLS COMPLETO
 ========================= */
-if (window.location.pathname.includes('admin.html')) {
-  const form = document.getElementById('channelForm');
-  const editForm = document.getElementById('editForm');
-  const userForm = document.getElementById('userForm');
 
-  const listaCanais = document.getElementById('listaCanais');
-  const listaUsuarios = document.getElementById('listaUsuarios');
+// Reescreve playlist .m3u8 para passar tudo pelo servidor
+app.get('/proxy-hls', (req, res) => {
+  const targetUrl = req.query.url;
 
-  const mensagem = document.getElementById('mensagem');
-  const userMessage = document.getElementById('userMessage');
-
-  const totalCanais = document.getElementById('totalCanais');
-  const totalUsuarios = document.getElementById('totalUsuarios');
-  const busca = document.getElementById('busca');
-
-  const playerModal = document.getElementById('playerModal');
-  const videoPlayer = document.getElementById('videoPlayer');
-  const playerTitle = document.getElementById('playerTitle');
-  const editModal = document.getElementById('editModal');
-
-  let canaisGlobais = [];
-
-  function showMessage(text, type) {
-    if (!mensagem) return;
-    mensagem.textContent = text;
-    mensagem.className = `message panel-message ${type}`;
+  if (!targetUrl) {
+    return res.status(400).send('URL não informada.');
   }
 
-  function showUserMessage(text, type) {
-    if (!userMessage) return;
-    userMessage.textContent = text;
-    userMessage.className = `message panel-message ${type}`;
-  }
-
-  function atualizarTotal(canais) {
-    if (!totalCanais) return;
-    totalCanais.textContent = Array.isArray(canais) ? canais.length : 0;
-  }
-
-  function atualizarTotalUsuarios(usuarios) {
-    if (!totalUsuarios) return;
-    totalUsuarios.textContent = Array.isArray(usuarios) ? usuarios.length : 0;
-  }
-
-  function renderizarCanais(canais) {
-    if (!listaCanais) return;
-
-    listaCanais.innerHTML = '';
-    atualizarTotal(canaisGlobais);
-
-    if (!Array.isArray(canais) || canais.length === 0) {
-      listaCanais.innerHTML = '<div class="empty">Nenhum canal encontrado.</div>';
-      return;
+  fetchRemote(targetUrl, (error, remoteRes) => {
+    if (error) {
+      console.error('Erro ao buscar playlist HLS:', error.message);
+      return res.status(500).send('Erro ao carregar playlist.');
     }
 
-    canais.slice().reverse().forEach((canal) => {
-      const logo = canal.logo?.trim()
-        ? canal.logo
-        : 'https://via.placeholder.com/600x340?text=Sem+Logo';
-
-      const nomeSeguro = String(canal.nome).replace(/'/g, "\\'");
-      const urlSegura = String(canal.url).replace(/'/g, "\\'");
-      const canalJson = JSON.stringify(canal).replace(/'/g, "&apos;");
-
-      const card = document.createElement('div');
-      card.className = 'channel-card';
-      card.innerHTML = `
-        <img class="channel-thumb" src="${logo}" alt="Logo do canal" />
-        <div class="channel-body">
-          <div class="channel-meta">
-            <div class="channel-name">${canal.nome}</div>
-            <span class="status">online</span>
-          </div>
-          <div class="channel-info"><strong>Categoria:</strong> ${canal.categoria}</div>
-          <div class="channel-info"><strong>URL:</strong> ${canal.url}</div>
-          <div class="channel-actions">
-            <button class="btn btn-watch" onclick="assistirCanal('${nomeSeguro}', '${urlSegura}')">Assistir</button>
-            <button class="btn btn-edit" onclick='abrirEdicao(${canalJson})'>Editar</button>
-            <button class="btn btn-danger" onclick="removerCanal(${canal.id})">Excluir</button>
-          </div>
-        </div>
-      `;
-      listaCanais.appendChild(card);
-    });
-  }
-
-  function renderizarUsuarios(usuarios) {
-    if (!listaUsuarios) return;
-
-    listaUsuarios.innerHTML = '';
-    atualizarTotalUsuarios(usuarios);
-
-    if (!Array.isArray(usuarios) || usuarios.length === 0) {
-      listaUsuarios.innerHTML = '<div class="empty">Nenhum usuário encontrado.</div>';
-      return;
+    if (remoteRes.statusCode >= 400) {
+      return res.status(remoteRes.statusCode).send('Erro ao carregar playlist.');
     }
 
-    usuarios.slice().reverse().forEach((user) => {
-      const card = document.createElement('div');
-      card.className = 'channel-card';
-      card.innerHTML = `
-        <div class="channel-body">
-          <div class="channel-meta">
-            <div class="channel-name">${user.usuario}</div>
-            <span class="status">${user.tipo}</span>
-          </div>
-          <div class="channel-info"><strong>ID:</strong> ${user.id}</div>
-          <div class="channel-info"><strong>Tipo:</strong> ${user.tipo}</div>
-          <div class="channel-actions">
-            ${user.tipo === 'admin' ? '' : `<button class="btn btn-danger" onclick="removerUsuario(${user.id})">Excluir</button>`}
-          </div>
-        </div>
-      `;
-      listaUsuarios.appendChild(card);
-    });
-  }
+    let data = '';
 
-  async function carregarCanais() {
-    try {
-      const response = await fetch('/api/canais', {
-        credentials: 'include'
+    remoteRes.on('data', (chunk) => {
+      data += chunk.toString();
+    });
+
+    remoteRes.on('end', () => {
+      const lines = data.split('\n');
+
+      const rewritten = lines.map((line) => {
+        const trimmed = line.trim();
+
+        // Mantém comentários e linhas vazias
+        if (!trimmed || trimmed.startsWith('#')) {
+          return line;
+        }
+
+        // Reescreve cada segmento/subplaylist para passar pelo proxy
+        const absoluteUrl = buildAbsoluteUrl(targetUrl, trimmed);
+
+        // Se for outra playlist .m3u8, volta para proxy-hls
+        if (absoluteUrl.includes('.m3u8')) {
+          return `/proxy-hls?url=${encodeURIComponent(absoluteUrl)}`;
+        }
+
+        // Segmentos .ts, .aac, .key, etc.
+        return `/proxy-segment?url=${encodeURIComponent(absoluteUrl)}`;
       });
 
-      if (response.status === 401) {
-        window.location.href = '/';
-        return;
-      }
-
-      const canais = await response.json();
-
-      if (!response.ok) {
-        showMessage('Não foi possível carregar os canais.', 'error');
-        return;
-      }
-
-      canaisGlobais = Array.isArray(canais) ? canais : [];
-      renderizarCanais(canaisGlobais);
-    } catch (error) {
-      showMessage('Erro ao carregar canais.', 'error');
-    }
-  }
-
-  async function carregarUsuarios() {
-    try {
-      const response = await fetch('/api/usuarios', {
-        credentials: 'include'
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/';
-        return;
-      }
-
-      const usuarios = await response.json();
-
-      if (!response.ok) {
-        showUserMessage('Não foi possível carregar os usuários.', 'error');
-        return;
-      }
-
-      renderizarUsuarios(usuarios);
-    } catch (error) {
-      showUserMessage('Erro ao carregar usuários.', 'error');
-    }
-  }
-
-  // filtro de busca do admin
-  if (busca) {
-    busca.addEventListener('input', () => {
-      const termo = busca.value.toLowerCase().trim();
-      const filtrados = canaisGlobais.filter((canal) =>
-        canal.nome.toLowerCase().includes(termo) ||
-        canal.categoria.toLowerCase().includes(termo)
-      );
-      renderizarCanais(filtrados);
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.send(rewritten.join('\n'));
     });
+  });
+});
+
+// Repassa segmentos do stream
+app.get('/proxy-segment', (req, res) => {
+  const targetUrl = req.query.url;
+
+  if (!targetUrl) {
+    return res.status(400).send('URL não informada.');
   }
 
-  // abre player
-  window.assistirCanal = function (nome, url) {
-    if (!playerTitle || !videoPlayer || !playerModal) return;
-    playerTitle.textContent = nome;
-    playerModal.classList.add('active');
-    playVideoUrl(videoPlayer, url);
-  };
-
-  // fecha player
-  window.fecharPlayer = function () {
-    const embedFrame = document.getElementById('embedFrame');
-
-    if (!playerModal || !videoPlayer) return;
-
-    destroyHls();
-    playerModal.classList.remove('active');
-
-    if (embedFrame) {
-      embedFrame.src = '';
-      embedFrame.style.display = 'none';
+  fetchRemote(targetUrl, (error, remoteRes) => {
+    if (error) {
+      console.error('Erro ao buscar segmento:', error.message);
+      return res.status(500).send('Erro ao carregar segmento.');
     }
 
-    videoPlayer.style.display = 'block';
-    videoPlayer.pause();
-    videoPlayer.removeAttribute('src');
-    videoPlayer.load();
-  };
-
-  // abre modal de edição
-  window.abrirEdicao = function (canal) {
-    if (!editModal) return;
-
-    const editId = document.getElementById('editId');
-    const editNome = document.getElementById('editNome');
-    const editCategoria = document.getElementById('editCategoria');
-    const editUrl = document.getElementById('editUrl');
-    const editLogo = document.getElementById('editLogo');
-
-    if (!editId || !editNome || !editCategoria || !editUrl || !editLogo) return;
-
-    editId.value = canal.id;
-    editNome.value = canal.nome;
-    editCategoria.value = canal.categoria;
-    editUrl.value = canal.url;
-    editLogo.value = canal.logo || '';
-    editModal.classList.add('active');
-  };
-
-  window.fecharEdicao = function () {
-    if (!editModal) return;
-    editModal.classList.remove('active');
-  };
-
-  // remove conteúdo
-  window.removerCanal = async function (id) {
-    try {
-      const response = await fetch(`/api/canais/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      const data = await response.json();
-
-      if (response.status === 401) {
-        window.location.href = '/';
-        return;
-      }
-
-      if (!response.ok) {
-        showMessage(data.error || 'Erro ao excluir canal.', 'error');
-        return;
-      }
-
-      showMessage(data.message, 'success');
-      carregarCanais();
-    } catch (error) {
-      showMessage('Erro ao excluir canal.', 'error');
+    if (remoteRes.statusCode >= 400) {
+      return res.status(remoteRes.statusCode).send('Erro ao carregar segmento.');
     }
-  };
 
-  // remove usuário
-  window.removerUsuario = async function (id) {
-    try {
-      const response = await fetch(`/api/usuarios/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      const data = await response.json();
-
-      if (response.status === 401) {
-        window.location.href = '/';
-        return;
-      }
-
-      if (!response.ok) {
-        showUserMessage(data.error || 'Erro ao excluir usuário.', 'error');
-        return;
-      }
-
-      showUserMessage(data.message, 'success');
-      carregarUsuarios();
-    } catch (error) {
-      showUserMessage('Erro ao excluir usuário.', 'error');
+    const contentType = remoteRes.headers['content-type'];
+    if (contentType) {
+      res.setHeader('Content-Type', contentType);
     }
-  };
 
-  // adiciona conteúdo
-  if (form) {
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      const payload = {
-        nome: document.getElementById('nome')?.value,
-        categoria: document.getElementById('categoria')?.value,
-        url: document.getElementById('url')?.value,
-        logo: document.getElementById('logo')?.value
-      };
-
-      try {
-        const response = await fetch('/api/canais', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-
-        if (response.status === 401) {
-          window.location.href = '/';
-          return;
-        }
-
-        if (!response.ok) {
-          showMessage(data.error || 'Erro ao adicionar canal.', 'error');
-          return;
-        }
-
-        showMessage(data.message, 'success');
-        form.reset();
-        carregarCanais();
-      } catch (error) {
-        showMessage('Erro ao adicionar canal.', 'error');
-      }
-    });
-  }
-
-  // salva edição
-  if (editForm) {
-    editForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      const id = document.getElementById('editId')?.value;
-
-      const payload = {
-        nome: document.getElementById('editNome')?.value,
-        categoria: document.getElementById('editCategoria')?.value,
-        url: document.getElementById('editUrl')?.value,
-        logo: document.getElementById('editLogo')?.value
-      };
-
-      try {
-        const response = await fetch(`/api/canais/${id}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-
-        if (response.status === 401) {
-          window.location.href = '/';
-          return;
-        }
-
-        if (!response.ok) {
-          showMessage(data.error || 'Erro ao editar canal.', 'error');
-          return;
-        }
-
-        showMessage(data.message, 'success');
-        fecharEdicao();
-        carregarCanais();
-      } catch (error) {
-        showMessage('Erro ao editar canal.', 'error');
-      }
-    });
-  }
-
-  // adiciona usuário
-  if (userForm) {
-    userForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      const payload = {
-        usuario: document.getElementById('novoUsuario')?.value,
-        senha: document.getElementById('novaSenha')?.value,
-        tipo: document.getElementById('tipoUsuario')?.value
-      };
-
-      try {
-        const response = await fetch('/api/usuarios', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-
-        if (response.status === 401) {
-          window.location.href = '/';
-          return;
-        }
-
-        if (!response.ok) {
-          showUserMessage(data.error || 'Erro ao adicionar usuário.', 'error');
-          return;
-        }
-
-        showUserMessage(data.message, 'success');
-        userForm.reset();
-        carregarUsuarios();
-      } catch (error) {
-        showUserMessage('Erro ao adicionar usuário.', 'error');
-      }
-    });
-  }
-
-  carregarCanais();
-  carregarUsuarios();
-}
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    remoteRes.pipe(res);
+  });
+});
 
 /* =========================
-   ÁREA CLIENTE PREMIUM
+   LOGIN
 ========================= */
-if (window.location.pathname.includes('cliente.html')) {
-  const listaCanais = document.getElementById('listaCanais');
-  const buscaCliente = document.getElementById('buscaCliente');
-  const totalCanaisCliente = document.getElementById('totalCanaisCliente');
 
-  const playerModal = document.getElementById('playerModal');
-  const videoPlayer = document.getElementById('videoPlayer');
-  const playerTitle = document.getElementById('playerTitle');
+app.post('/api/login', (req, res) => {
+  const { usuario, senha } = req.body;
+  const users = readJson(USERS_FILE);
 
-  let canaisCliente = [];
-  let categoriaAtual = 'Todos';
+  const foundUser = users.find(
+    (user) => user.usuario === usuario && user.senha === senha
+  );
 
-  function atualizarTotalCliente(lista) {
-    if (!totalCanaisCliente) return;
-    totalCanaisCliente.textContent = Array.isArray(lista) ? lista.length : 0;
+  if (!foundUser) {
+    return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
   }
 
-  function renderizarCanaisCliente(lista) {
-    if (!listaCanais) return;
+  req.session.user = {
+    id: foundUser.id,
+    usuario: foundUser.usuario,
+    tipo: foundUser.tipo
+  };
 
-    listaCanais.innerHTML = '';
-    atualizarTotalCliente(lista);
+  res.json({
+    message: 'Login realizado com sucesso.',
+    tipo: foundUser.tipo,
+    usuario: foundUser.usuario
+  });
+});
 
-    if (!Array.isArray(lista) || lista.length === 0) {
-      listaCanais.innerHTML = '<div class="empty">Nenhum conteúdo disponível.</div>';
-      return;
-    }
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.json({ message: 'Logout realizado com sucesso.' });
+  });
+});
 
-    lista.slice().reverse().forEach((canal) => {
-      const logo = canal.logo?.trim()
-        ? canal.logo
-        : 'https://via.placeholder.com/600x340?text=Sem+Logo';
+/* =========================
+   USUÁRIOS
+========================= */
 
-      const nomeSeguro = String(canal.nome).replace(/'/g, "\\'");
-      const urlSegura = String(canal.url).replace(/'/g, "\\'");
+app.get('/api/usuarios', requireAdmin, (req, res) => {
+  const users = readJson(USERS_FILE).map((user) => ({
+    id: user.id,
+    usuario: user.usuario,
+    tipo: user.tipo
+  }));
 
-      const card = document.createElement('div');
-      card.className = 'channel-card';
+  res.json(users);
+});
 
-      card.innerHTML = `
-        <img class="channel-thumb" src="${logo}" alt="Logo do canal">
-        <div class="channel-body">
-          <div class="channel-meta">
-            <div class="channel-name">${canal.nome}</div>
-            <span class="status">online</span>
-          </div>
+app.post('/api/usuarios', requireAdmin, (req, res) => {
+  const { usuario, senha, tipo } = req.body;
 
-          <div class="channel-info">
-            <strong>Categoria:</strong> ${canal.categoria}
-          </div>
+  if (!usuario || !senha || !tipo) {
+    return res.status(400).json({ error: 'Preencha todos os campos.' });
+  }
 
-          <div class="channel-actions">
-            <button class="btn btn-watch" onclick="assistirCanalCliente('${nomeSeguro}', '${urlSegura}')">
-              Assistir
-            </button>
-          </div>
-        </div>
-      `;
+  const users = readJson(USERS_FILE);
 
-      listaCanais.appendChild(card);
+  users.push({
+    id: Date.now(),
+    usuario,
+    senha,
+    tipo
+  });
+
+  saveJson(USERS_FILE, users);
+
+  res.status(201).json({ message: 'Usuário criado com sucesso.' });
+});
+
+app.delete('/api/usuarios/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const users = readJson(USERS_FILE);
+
+  const filtered = users.filter((u) => u.id !== id);
+  saveJson(USERS_FILE, filtered);
+
+  res.json({ message: 'Usuário removido com sucesso.' });
+});
+
+/* =========================
+   CONTEÚDOS
+========================= */
+
+app.get('/api/canais', requireAuth, (req, res) => {
+  res.json(readJson(CHANNELS_FILE));
+});
+
+app.post('/api/canais', requireAdmin, (req, res) => {
+  const { nome, categoria, url, logo } = req.body;
+
+  if (!nome || !categoria || !url) {
+    return res.status(400).json({
+      error: 'Os campos nome, categoria e url são obrigatórios.'
     });
   }
 
-  // aplica busca + categoria
-  function aplicarFiltros() {
-    const termo = buscaCliente ? buscaCliente.value.toLowerCase().trim() : '';
+  const channels = readJson(CHANNELS_FILE);
 
-    const filtrados = canaisCliente.filter((canal) => {
-      const bateBusca =
-        canal.nome.toLowerCase().includes(termo) ||
-        canal.categoria.toLowerCase().includes(termo);
-
-      const bateCategoria =
-        categoriaAtual === 'Todos' || canal.categoria === categoriaAtual;
-
-      return bateBusca && bateCategoria;
-    });
-
-    renderizarCanaisCliente(filtrados);
-  }
-
-  // muda categoria pelo botão
-  window.filtrarCategoria = function (categoria) {
-    categoriaAtual = categoria;
-
-    const botoes = document.querySelectorAll('.btn-filter');
-    botoes.forEach((btn) => btn.classList.remove('active'));
-
-    const botaoAtual = Array.from(botoes).find(
-      (btn) => btn.innerText.trim() === categoria
-    );
-
-    if (botaoAtual) {
-      botaoAtual.classList.add('active');
-    }
-
-    aplicarFiltros();
+  const newChannel = {
+    id: Date.now(),
+    nome,
+    categoria,
+    url,
+    logo: logo || '',
+    status: 'online',
+    criadoEm: new Date().toISOString()
   };
 
-  // carrega conteúdos da API
-  async function carregarCanaisCliente() {
-    try {
-      const response = await fetch('/api/canais', {
-        credentials: 'include'
-      });
+  channels.push(newChannel);
+  saveJson(CHANNELS_FILE, channels);
 
-      if (response.status === 401) {
-        window.location.href = '/';
-        return;
-      }
+  res.status(201).json({
+    message: 'Conteúdo adicionado com sucesso.'
+  });
+});
 
-      const canais = await response.json();
+app.put('/api/canais/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const channels = readJson(CHANNELS_FILE);
 
-      if (!response.ok) {
-        if (listaCanais) {
-          listaCanais.innerHTML = '<div class="empty">Não foi possível carregar os conteúdos.</div>';
-        }
-        return;
-      }
+  const index = channels.findIndex((c) => c.id === id);
 
-      canaisCliente = Array.isArray(canais) ? canais : [];
-      aplicarFiltros();
-    } catch (error) {
-      if (listaCanais) {
-        listaCanais.innerHTML = '<div class="empty">Erro ao carregar conteúdos.</div>';
-      }
-    }
+  if (index === -1) {
+    return res.status(404).json({ error: 'Conteúdo não encontrado.' });
   }
 
-  // busca ao digitar
-  if (buscaCliente) {
-    buscaCliente.addEventListener('input', () => {
-      aplicarFiltros();
-    });
-  }
-
-  // abre player do cliente
-  window.assistirCanalCliente = function (nome, url) {
-    if (!playerTitle || !videoPlayer || !playerModal) return;
-    playerTitle.textContent = nome;
-    playerModal.classList.add('active');
-    playVideoUrl(videoPlayer, url);
+  channels[index] = {
+    ...channels[index],
+    ...req.body
   };
 
-  // fecha player do cliente
-  window.fecharPlayer = function () {
-    const embedFrame = document.getElementById('embedFrame');
+  saveJson(CHANNELS_FILE, channels);
 
-    if (!playerModal || !videoPlayer) return;
+  res.json({ message: 'Conteúdo atualizado com sucesso.' });
+});
 
-    destroyHls();
-    playerModal.classList.remove('active');
+app.delete('/api/canais/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const channels = readJson(CHANNELS_FILE);
 
-    if (embedFrame) {
-      embedFrame.src = '';
-      embedFrame.style.display = 'none';
-    }
+  const filtered = channels.filter((c) => c.id !== id);
+  saveJson(CHANNELS_FILE, filtered);
 
-    videoPlayer.style.display = 'block';
-    videoPlayer.pause();
-    videoPlayer.removeAttribute('src');
-    videoPlayer.load();
-  };
+  res.json({ message: 'Conteúdo removido com sucesso.' });
+});
 
-  carregarCanaisCliente();
-}
+/* =========================
+   PÁGINAS
+========================= */
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/admin.html', (req, res) => {
+  if (!req.session.user) return res.redirect('/');
+  if (req.session.user.tipo !== 'admin') return res.redirect('/cliente.html');
+
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/cliente.html', (req, res) => {
+  if (!req.session.user) return res.redirect('/');
+  if (req.session.user.tipo !== 'cliente') return res.redirect('/admin.html');
+
+  res.sendFile(path.join(__dirname, 'public', 'cliente.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
