@@ -92,6 +92,14 @@
 
         <form id="channelForm">
           <div>
+            <label>Buscar filme/série no TMDb</label>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <input type="text" id="tmdbBusca" placeholder="Ex: Deadpool & Wolverine">
+              <button type="button" class="btn btn-primary" onclick="buscarNoTMDb()">Buscar no TMDb</button>
+            </div>
+          </div>
+
+          <div>
             <label>Nome do conteúdo</label>
             <input type="text" id="nome" required>
           </div>
@@ -222,6 +230,58 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <script>
+    const TMDB_API_KEY = "300843a002c5b030e2dc595d72f9cdd2";
+    const TMDB_BASE_URL = "https://api.themoviedb.org/3";
+    const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
+
+    async function buscarNoTMDb() {
+      const termo = document.getElementById("tmdbBusca")?.value?.trim();
+
+      if (!termo) {
+        alert("Digite o nome do filme ou série.");
+        return;
+      }
+
+      try {
+        const categoriaSelecionada = document.getElementById("categoria")?.value;
+        const endpoint = categoriaSelecionada === "Série" ? "tv" : "movie";
+
+        const url = `${TMDB_BASE_URL}/search/${endpoint}?api_key=${TMDB_API_KEY}&language=pt-BR&query=${encodeURIComponent(termo)}`;
+
+        const resposta = await fetch(url);
+        const dados = await resposta.json();
+
+        if (!dados.results || !dados.results.length) {
+          alert("Nenhum conteúdo encontrado no TMDb.");
+          return;
+        }
+
+        const item = dados.results[0];
+        const titulo = item.title || item.name || "";
+        const sinopse = item.overview || "";
+        const poster = item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : "";
+        const tipoPagina = item.title ? "movie" : "tv";
+        const linkOficial = item.id ? `https://www.themoviedb.org/${tipoPagina}/${item.id}` : "";
+
+        document.getElementById("nome").value = titulo;
+        document.getElementById("sinopse").value = sinopse;
+        document.getElementById("logo").value = poster;
+        document.getElementById("oficial").value = linkOficial;
+
+        if (!document.getElementById("categoria").value) {
+          document.getElementById("categoria").value = tipoPagina === "tv" ? "Série" : "Filme";
+        }
+
+        alert("Conteúdo preenchido com sucesso pelo TMDb.");
+      } catch (erro) {
+        console.error("Erro ao buscar no TMDb:", erro);
+        alert("Erro ao buscar informações no TMDb.");
+      }
+    }
+  </script>
+
   <script src="/app.js"></script>
 </body>
 
