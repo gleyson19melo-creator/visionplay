@@ -116,8 +116,13 @@
           </div>
 
           <div>
-            <label>URL do trailer / vídeo</label>
-            <input type="text" id="url" required>
+            <label>Trailer URL</label>
+            <input type="text" id="trailerUrl" placeholder="https://www.youtube.com/embed/...">
+          </div>
+
+          <div>
+            <label>Vídeo completo URL</label>
+            <input type="text" id="videoUrl" placeholder="https://...mp4 ou https://...m3u8">
           </div>
 
           <div>
@@ -204,8 +209,13 @@
           </div>
 
           <div>
-            <label for="editUrl">URL do trailer / vídeo</label>
-            <input type="text" id="editUrl" required>
+            <label for="editTrailerUrl">Trailer URL</label>
+            <input type="text" id="editTrailerUrl" placeholder="https://www.youtube.com/embed/...">
+          </div>
+
+          <div>
+            <label for="editVideoUrl">Vídeo completo URL</label>
+            <input type="text" id="editVideoUrl" placeholder="https://...mp4 ou https://...m3u8">
           </div>
 
           <div>
@@ -302,7 +312,7 @@
         document.getElementById("oficial").value = linkOficial;
 
         if (trailerEmbed) {
-          document.getElementById("url").value = trailerEmbed;
+          document.getElementById("trailerUrl").value = trailerEmbed;
         }
 
         if (!document.getElementById("categoria").value) {

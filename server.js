@@ -357,10 +357,16 @@ app.get('/api/canais', requireAuth, async (req, res) => {
   try {
     const snapshot = await db.collection('canais').get();
 
-    const canais = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const canais = snapshot.docs.map((doc) => {
+      const data = doc.data();
+
+      return {
+        id: doc.id,
+        ...data,
+        trailerUrl: data.trailerUrl || data.url || '',
+        videoUrl: data.videoUrl || ''
+      };
+    });
 
     res.json(canais);
   } catch (error) {
@@ -371,18 +377,32 @@ app.get('/api/canais', requireAuth, async (req, res) => {
 
 app.post('/api/canais', requireAdmin, async (req, res) => {
   try {
-    const { nome, categoria, url, logo, sinopse, oficial } = req.body;
+    const {
+      nome,
+      categoria,
+      trailerUrl,
+      videoUrl,
+      url,
+      logo,
+      sinopse,
+      oficial
+    } = req.body;
 
-    if (!nome || !categoria || !url) {
+    const trailerFinal = trailerUrl || url || '';
+    const videoFinal = videoUrl || '';
+
+    if (!nome || !categoria || (!trailerFinal && !videoFinal)) {
       return res.status(400).json({
-        error: 'Os campos nome, categoria e url são obrigatórios.'
+        error: 'Os campos nome, categoria e pelo menos um entre trailer ou vídeo são obrigatórios.'
       });
     }
 
     const novoCanal = {
       nome,
       categoria,
-      url,
+      trailerUrl: trailerFinal,
+      videoUrl: videoFinal,
+      url: trailerFinal,
       logo: logo || '',
       sinopse: sinopse || '',
       oficial: oficial || '',
@@ -414,13 +434,32 @@ app.put('/api/canais/:id', requireAdmin, async (req, res) => {
 
     const atual = docSnap.data();
 
+    const trailerFinal =
+      req.body.trailerUrl !== undefined
+        ? req.body.trailerUrl
+        : (req.body.url !== undefined ? req.body.url : (atual.trailerUrl || atual.url || ''));
+
+    const videoFinal =
+      req.body.videoUrl !== undefined
+        ? req.body.videoUrl
+        : (atual.videoUrl || '');
+
     const atualizado = {
       ...atual,
       ...req.body,
-      logo: req.body.logo ?? atual.logo,
-      sinopse: req.body.sinopse ?? atual.sinopse,
-      oficial: req.body.oficial ?? atual.oficial
+      trailerUrl: trailerFinal || '',
+      videoUrl: videoFinal || '',
+      url: trailerFinal || '',
+      logo: req.body.logo ?? atual.logo ?? '',
+      sinopse: req.body.sinopse ?? atual.sinopse ?? '',
+      oficial: req.body.oficial ?? atual.oficial ?? ''
     };
+
+    if (!atualizado.nome || !atualizado.categoria || (!atualizado.trailerUrl && !atualizado.videoUrl)) {
+      return res.status(400).json({
+        error: 'Os campos nome, categoria e pelo menos um entre trailer ou vídeo são obrigatórios.'
+      });
+    }
 
     await docRef.set(atualizado);
 

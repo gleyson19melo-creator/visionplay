@@ -188,7 +188,12 @@ function playVideoUrl(videoElement, url) {
     finalUrl = `/proxy-segment?url=${encodeURIComponent(url)}`;
   }
 
-  if (url.includes('/embed/') || url.includes('embedplayapi.site')) {
+  if (
+    url.includes('/embed/') ||
+    url.includes('embedplayapi.site') ||
+    url.includes('youtube.com/embed/') ||
+    url.includes('player.vimeo.com/')
+  ) {
     videoElement.style.display = 'none';
 
     if (embedFrame) {
@@ -301,6 +306,14 @@ if (window.location.pathname.includes('admin.html')) {
     totalUsuarios.textContent = Array.isArray(usuarios) ? usuarios.length : 0;
   }
 
+  function obterTrailerUrl(canal) {
+    return canal.trailerUrl || canal.url || '';
+  }
+
+  function obterVideoUrl(canal) {
+    return canal.videoUrl || '';
+  }
+
   function renderizarCanais(canais) {
     if (!listaCanais) return;
 
@@ -318,8 +331,18 @@ if (window.location.pathname.includes('admin.html')) {
         : 'https://via.placeholder.com/600x340?text=Sem+Logo';
 
       const nomeSeguro = String(canal.nome || '').replace(/'/g, "\\'");
-      const urlSegura = String(canal.url || '').replace(/'/g, "\\'");
+      const trailerUrl = obterTrailerUrl(canal);
+      const videoUrl = obterVideoUrl(canal);
+      const trailerSegura = String(trailerUrl || '').replace(/'/g, "\\'");
+      const videoSegura = String(videoUrl || '').replace(/'/g, "\\'");
       const canalJson = JSON.stringify(canal).replace(/'/g, "&apos;");
+
+      const botoesAcao = `
+        ${trailerUrl ? `<button class="btn btn-watch" onclick="assistirTrailer('${nomeSeguro}', '${trailerSegura}')">Trailer</button>` : ''}
+        ${videoUrl ? `<button class="btn btn-watch" onclick="assistirVideo('${nomeSeguro}', '${videoSegura}')">Assistir</button>` : ''}
+        <button class="btn btn-edit" onclick='abrirEdicao(${canalJson})'>Editar</button>
+        <button class="btn btn-danger" onclick="removerCanal('${canal.id}')">Excluir</button>
+      `;
 
       const card = document.createElement('div');
       card.className = 'channel-card';
@@ -332,12 +355,11 @@ if (window.location.pathname.includes('admin.html')) {
           </div>
           <div class="channel-info"><strong>Categoria:</strong> ${canal.categoria || 'Sem categoria'}</div>
           <div class="channel-info"><strong>Sinopse:</strong> ${canal.sinopse || 'Sem sinopse'}</div>
-          <div class="channel-info"><strong>Trailer:</strong> ${canal.url || 'Sem URL'}</div>
+          <div class="channel-info"><strong>Trailer:</strong> ${trailerUrl || 'Sem trailer'}</div>
+          <div class="channel-info"><strong>Vídeo:</strong> ${videoUrl || 'Sem vídeo completo'}</div>
           <div class="channel-info"><strong>Oficial:</strong> ${canal.oficial || 'Sem link oficial'}</div>
           <div class="channel-actions">
-            <button class="btn btn-watch" onclick="assistirCanal('${nomeSeguro}', '${urlSegura}')">Trailer</button>
-            <button class="btn btn-edit" onclick='abrirEdicao(${canalJson})'>Editar</button>
-            <button class="btn btn-danger" onclick="removerCanal('${canal.id}')">Excluir</button>
+            ${botoesAcao}
           </div>
         </div>
       `;
@@ -436,9 +458,16 @@ if (window.location.pathname.includes('admin.html')) {
     });
   }
 
-  window.assistirCanal = function (nome, url) {
-    if (!playerTitle || !videoPlayer || !playerModal) return;
-    playerTitle.textContent = nome;
+  window.assistirTrailer = function (nome, url) {
+    if (!playerTitle || !videoPlayer || !playerModal || !url) return;
+    playerTitle.textContent = `${nome} - Trailer`;
+    playerModal.classList.add('active');
+    playVideoUrl(videoPlayer, url);
+  };
+
+  window.assistirVideo = function (nome, url) {
+    if (!playerTitle || !videoPlayer || !playerModal || !url) return;
+    playerTitle.textContent = `${nome} - Assistir`;
     playerModal.classList.add('active');
     playVideoUrl(videoPlayer, url);
   };
@@ -468,17 +497,19 @@ if (window.location.pathname.includes('admin.html')) {
     const editId = document.getElementById('editId');
     const editNome = document.getElementById('editNome');
     const editCategoria = document.getElementById('editCategoria');
-    const editUrl = document.getElementById('editUrl');
+    const editTrailerUrl = document.getElementById('editTrailerUrl');
+    const editVideoUrl = document.getElementById('editVideoUrl');
     const editLogo = document.getElementById('editLogo');
     const editSinopse = document.getElementById('editSinopse');
     const editOficial = document.getElementById('editOficial');
 
-    if (!editId || !editNome || !editCategoria || !editUrl || !editLogo) return;
+    if (!editId || !editNome || !editCategoria || !editLogo) return;
 
     editId.value = canal.id;
     editNome.value = canal.nome || '';
     editCategoria.value = canal.categoria || '';
-    editUrl.value = canal.url || '';
+    if (editTrailerUrl) editTrailerUrl.value = canal.trailerUrl || canal.url || '';
+    if (editVideoUrl) editVideoUrl.value = canal.videoUrl || '';
     editLogo.value = canal.logo || '';
 
     if (editSinopse) editSinopse.value = canal.sinopse || '';
@@ -549,7 +580,8 @@ if (window.location.pathname.includes('admin.html')) {
       const payload = {
         nome: document.getElementById('nome')?.value,
         categoria: document.getElementById('categoria')?.value,
-        url: document.getElementById('url')?.value,
+        trailerUrl: document.getElementById('trailerUrl')?.value,
+        videoUrl: document.getElementById('videoUrl')?.value,
         logo: document.getElementById('logo')?.value,
         sinopse: document.getElementById('sinopse')?.value,
         oficial: document.getElementById('oficial')?.value
@@ -593,7 +625,8 @@ if (window.location.pathname.includes('admin.html')) {
       const payload = {
         nome: document.getElementById('editNome')?.value,
         categoria: document.getElementById('editCategoria')?.value,
-        url: document.getElementById('editUrl')?.value,
+        trailerUrl: document.getElementById('editTrailerUrl')?.value,
+        videoUrl: document.getElementById('editVideoUrl')?.value,
         logo: document.getElementById('editLogo')?.value,
         sinopse: document.getElementById('editSinopse')?.value,
         oficial: document.getElementById('editOficial')?.value
@@ -691,6 +724,14 @@ if (window.location.pathname.includes('cliente.html')) {
     totalCanaisCliente.textContent = Array.isArray(lista) ? lista.length : 0;
   }
 
+  function obterTrailerUrl(canal) {
+    return canal.trailerUrl || canal.url || '';
+  }
+
+  function obterVideoUrl(canal) {
+    return canal.videoUrl || '';
+  }
+
   function renderizarCanaisCliente(lista) {
     if (!listaCanais) return;
 
@@ -708,8 +749,27 @@ if (window.location.pathname.includes('cliente.html')) {
         : 'https://via.placeholder.com/600x340?text=Sem+Logo';
 
       const nomeSeguro = String(canal.nome || '').replace(/'/g, "\\'");
-      const urlSegura = String(canal.url || '').replace(/'/g, "\\'");
+      const trailerUrl = obterTrailerUrl(canal);
+      const videoUrl = obterVideoUrl(canal);
+      const trailerSegura = String(trailerUrl || '').replace(/'/g, "\\'");
+      const videoSegura = String(videoUrl || '').replace(/'/g, "\\'");
       const linkOficial = canal.oficial?.trim() ? canal.oficial : '#';
+
+      const botoes = `
+        ${trailerUrl ? `
+          <button class="btn btn-watch" onclick="assistirTrailerCliente('${nomeSeguro}', '${trailerSegura}')">
+            Trailer
+          </button>
+        ` : ''}
+        ${videoUrl ? `
+          <button class="btn btn-watch" onclick="assistirVideoCliente('${nomeSeguro}', '${videoSegura}')">
+            Assistir
+          </button>
+        ` : ''}
+        <a class="btn btn-edit" href="${linkOficial}" target="_blank" rel="noopener noreferrer">
+          Oficial
+        </a>
+      `;
 
       const card = document.createElement('div');
       card.className = 'channel-card';
@@ -727,13 +787,7 @@ if (window.location.pathname.includes('cliente.html')) {
           </div>
 
           <div class="channel-actions">
-            <button class="btn btn-watch" onclick="assistirCanalCliente('${nomeSeguro}', '${urlSegura}')">
-              Trailer
-            </button>
-
-            <a class="btn btn-edit" href="${linkOficial}" target="_blank" rel="noopener noreferrer">
-              Assistir Oficial
-            </a>
+            ${botoes}
           </div>
         </div>
       `;
@@ -811,9 +865,16 @@ if (window.location.pathname.includes('cliente.html')) {
     });
   }
 
-  window.assistirCanalCliente = function (nome, url) {
-    if (!playerTitle || !videoPlayer || !playerModal) return;
-    playerTitle.textContent = nome;
+  window.assistirTrailerCliente = function (nome, url) {
+    if (!playerTitle || !videoPlayer || !playerModal || !url) return;
+    playerTitle.textContent = `${nome} - Trailer`;
+    playerModal.classList.add('active');
+    playVideoUrl(videoPlayer, url);
+  };
+
+  window.assistirVideoCliente = function (nome, url) {
+    if (!playerTitle || !videoPlayer || !playerModal || !url) return;
+    playerTitle.textContent = `${nome} - Assistir`;
     playerModal.classList.add('active');
     playVideoUrl(videoPlayer, url);
   };
