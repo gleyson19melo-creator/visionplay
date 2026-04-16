@@ -244,37 +244,76 @@
         return;
       }
 
+      if (!TMDB_API_KEY) {
+        alert("Adicione sua chave da API do TMDb no código.");
+        return;
+      }
+
       try {
         const categoriaSelecionada = document.getElementById("categoria")?.value;
         const endpoint = categoriaSelecionada === "Série" ? "tv" : "movie";
 
-        const url = `${TMDB_BASE_URL}/search/${endpoint}?api_key=${TMDB_API_KEY}&language=pt-BR&query=${encodeURIComponent(termo)}`;
+        const searchUrl = `${TMDB_BASE_URL}/search/${endpoint}?api_key=${TMDB_API_KEY}&language=pt-BR&query=${encodeURIComponent(termo)}`;
+        const searchResponse = await fetch(searchUrl);
+        const searchData = await searchResponse.json();
 
-        const resposta = await fetch(url);
-        const dados = await resposta.json();
-
-        if (!dados.results || !dados.results.length) {
+        if (!searchData.results || !searchData.results.length) {
           alert("Nenhum conteúdo encontrado no TMDb.");
           return;
         }
 
-        const item = dados.results[0];
-        const titulo = item.title || item.name || "";
-        const sinopse = item.overview || "";
-        const poster = item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : "";
-        const tipoPagina = item.title ? "movie" : "tv";
-        const linkOficial = item.id ? `https://www.themoviedb.org/${tipoPagina}/${item.id}` : "";
+        const item = searchData.results[0];
+        const itemId = item.id;
+
+        const detailsUrl = `${TMDB_BASE_URL}/${endpoint}/${itemId}?api_key=${TMDB_API_KEY}&language=pt-BR&append_to_response=videos`;
+        const detailsResponse = await fetch(detailsUrl);
+        const detailsData = await detailsResponse.json();
+
+        const titulo = detailsData.title || detailsData.name || "";
+        const sinopse = detailsData.overview || "";
+        const poster = detailsData.poster_path ? `${TMDB_IMAGE_BASE}${detailsData.poster_path}` : "";
+        const tipoPagina = endpoint === "tv" ? "tv" : "movie";
+        const linkOficial = detailsData.id ? `https://www.themoviedb.org/${tipoPagina}/${detailsData.id}` : "";
+
+        let trailerEmbed = "";
+        const videos = detailsData.videos?.results || [];
+
+        const trailer =
+          videos.find(v =>
+            v.site === "YouTube" &&
+            v.type === "Trailer" &&
+            v.official === true
+          ) ||
+          videos.find(v =>
+            v.site === "YouTube" &&
+            v.type === "Trailer"
+          ) ||
+          videos.find(v =>
+            v.site === "YouTube"
+          );
+
+        if (trailer?.key) {
+          trailerEmbed = `https://www.youtube.com/embed/${trailer.key}`;
+        }
 
         document.getElementById("nome").value = titulo;
         document.getElementById("sinopse").value = sinopse;
         document.getElementById("logo").value = poster;
         document.getElementById("oficial").value = linkOficial;
 
-        if (!document.getElementById("categoria").value) {
-          document.getElementById("categoria").value = tipoPagina === "tv" ? "Série" : "Filme";
+        if (trailerEmbed) {
+          document.getElementById("url").value = trailerEmbed;
         }
 
-        alert("Conteúdo preenchido com sucesso pelo TMDb.");
+        if (!document.getElementById("categoria").value) {
+          document.getElementById("categoria").value = endpoint === "tv" ? "Série" : "Filme";
+        }
+
+        alert(
+          trailerEmbed
+            ? "Conteúdo e trailer preenchidos com sucesso."
+            : "Conteúdo preenchido, mas não encontrei trailer automático."
+        );
       } catch (erro) {
         console.error("Erro ao buscar no TMDb:", erro);
         alert("Erro ao buscar informações no TMDb.");
