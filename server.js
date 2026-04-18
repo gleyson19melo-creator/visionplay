@@ -30,7 +30,11 @@ app.use(session({
   }
 }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve arquivos estáticos, mas NÃO libera HTML automaticamente
+app.use(express.static(path.join(__dirname, 'public'), {
+  index: false,
+  extensions: false
+}));
 
 // Lê JSON e cria arquivo se não existir
 function readJson(filePath) {
@@ -230,6 +234,14 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => {
     res.json({ message: 'Logout realizado com sucesso.' });
+  });
+});
+
+app.get('/api/me', requireAuth, (req, res) => {
+  res.json({
+    id: req.session.user.id,
+    usuario: req.session.user.usuario,
+    tipo: req.session.user.tipo
   });
 });
 
@@ -606,23 +618,21 @@ app.delete('/api/livros/:id', requireAdmin, async (req, res) => {
 });
 
 /* =========================
-   PÁGINAS
+   PÁGINAS PROTEGIDAS
 ========================= */
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/admin.html', (req, res) => {
-  if (!req.session.user) return res.redirect('/');
-  if (req.session.user.tipo !== 'admin') return res.redirect('/cliente.html');
-
+app.get('/admin.html', requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-app.get('/cliente.html', (req, res) => {
-  if (!req.session.user) return res.redirect('/');
-  if (req.session.user.tipo !== 'cliente') return res.redirect('/admin.html');
+app.get('/cliente.html', requireAuth, (req, res) => {
+  if (req.session.user.tipo !== 'cliente') {
+    return res.redirect('/admin.html');
+  }
 
   res.sendFile(path.join(__dirname, 'public', 'cliente.html'));
 });
