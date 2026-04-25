@@ -191,8 +191,10 @@ function playVideoUrl(videoElement, url) {
   if (
     url.includes('/embed/') ||
     url.includes('embedplayapi.site') ||
+    url.includes('superflixapi.rest') ||
     url.includes('youtube.com/embed/') ||
     url.includes('player.vimeo.com/')
+
   ) {
     videoElement.style.display = 'none';
 
@@ -240,7 +242,7 @@ async function logout() {
       method: 'POST',
       credentials: 'include'
     });
-  } catch (error) {}
+  } catch (error) { }
 
   localStorage.clear();
   window.location.href = '/';
@@ -1215,7 +1217,7 @@ if (window.location.pathname.includes('cliente.html')) {
 
       livrosCliente = Array.isArray(livros) ? livros : [];
       aplicarFiltros();
-    } catch (error) {}
+    } catch (error) { }
   }
 
   if (buscaCliente) {
