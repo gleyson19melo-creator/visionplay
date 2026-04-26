@@ -49,6 +49,55 @@
 
     <section class="layout" style="margin-bottom:22px;">
       <div class="panel-card">
+        <h2>Conectar TikTok</h2>
+        <p class="subtitle">Conecte sua conta TikTok para publicar cortes direto pelo painel.</p>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+          <a class="btn btn-primary" href="/auth/tiktok">
+            Conectar TikTok
+          </a>
+
+          <button type="button" class="btn btn-edit" onclick="alert('Essa função será ativada quando o TikTok aprovar o aplicativo.')">
+            Ver status
+          </button>
+        </div>
+
+        <div class="message" style="margin-top:12px;">
+          Status: aguardando aprovação do TikTok Developers.
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <h2>Postar corte no TikTok</h2>
+        <p class="subtitle">Prepare um corte MP4, legenda e hashtags para publicar no TikTok.</p>
+
+        <form id="tiktokPostForm">
+          <div>
+            <label>Vídeo MP4</label>
+            <input type="file" id="tiktokVideo" accept="video/mp4,video/*">
+          </div>
+
+          <div>
+            <label>Legenda</label>
+            <textarea id="tiktokLegenda" rows="4" placeholder="Ex: Esse momento pegou todo mundo de surpresa 😱🔥 #filmes #series #cinezor"></textarea>
+          </div>
+
+          <div>
+            <label>Hashtags</label>
+            <input type="text" id="tiktokHashtags" placeholder="#filmes #series #cinezor #viral">
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            Postar no TikTok
+          </button>
+        </form>
+
+        <div id="tiktokMessage" class="message"></div>
+      </div>
+    </section>
+
+    <section class="layout" style="margin-bottom:22px;">
+      <div class="panel-card">
         <h2>Adicionar usuário</h2>
         <p class="subtitle">Crie novos acessos para o sistema.</p>
 
@@ -143,7 +192,7 @@
 
           <div>
             <label>Link oficial</label>
-            <input type="text" id="oficial" placeholder="https://...">
+            <input type="text" id="oficial" placeholder="https://..."></textarea>
           </div>
 
           <button type="submit" class="btn btn-primary">Adicionar conteúdo</button>
@@ -559,6 +608,40 @@
         console.error("Erro ao buscar no Google Books:", erro);
         alert("Erro ao buscar informações do livro.");
       }
+    }
+  </script>
+
+  <script>
+    const tiktokPostForm = document.getElementById("tiktokPostForm");
+    const tiktokMessage = document.getElementById("tiktokMessage");
+
+    if (tiktokPostForm) {
+      tiktokPostForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const video = document.getElementById("tiktokVideo")?.files?.[0];
+        const legenda = document.getElementById("tiktokLegenda")?.value?.trim();
+        const hashtags = document.getElementById("tiktokHashtags")?.value?.trim();
+
+        if (!video) {
+          if (tiktokMessage) {
+            tiktokMessage.textContent = "Selecione um vídeo MP4 antes de postar.";
+            tiktokMessage.className = "message error";
+          }
+          return;
+        }
+
+        if (tiktokMessage) {
+          tiktokMessage.textContent = "Função preparada. A postagem será ativada quando o TikTok aprovar o aplicativo e o server.js receber as rotas.";
+          tiktokMessage.className = "message success";
+        }
+
+        console.log("TikTok pronto para integração:", {
+          video: video.name,
+          legenda,
+          hashtags
+        });
+      });
     }
   </script>
 

@@ -117,6 +117,24 @@ function buildAbsoluteUrl(baseUrl, relativePath) {
   }
 }
 
+/* =========================
+   TIKTOK - CONFIGURAÇÃO
+========================= */
+
+const TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY || '';
+const TIKTOK_CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET || '';
+const TIKTOK_REDIRECT_URI =
+  process.env.TIKTOK_REDIRECT_URI ||
+  'https://cinezor.onrender.com/auth/tiktok/callback';
+
+function tiktokEstaConfigurado() {
+  return Boolean(TIKTOK_CLIENT_KEY && TIKTOK_CLIENT_SECRET && TIKTOK_REDIRECT_URI);
+}
+
+function criarStateTikTok() {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
+
 app.get('/proxy-hls', (req, res) => {
   const targetUrl = req.query.url;
 
@@ -831,6 +849,172 @@ app.get('/api/salas/:roomId/chat', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Erro ao buscar chat:', error);
     res.status(500).json({ error: 'Erro ao buscar chat.' });
+  }
+});
+
+/* =========================
+   TIKTOK - ROTAS
+========================= */
+
+/*
+  Essas rotas deixam o Cinezor preparado para integração com TikTok.
+  Para funcionar de verdade, adicione no Render:
+  TIKTOK_CLIENT_KEY
+  TIKTOK_CLIENT_SECRET
+  TIKTOK_REDIRECT_URI
+
+  O app também precisa estar aprovado no TikTok Developers.
+*/
+
+app.get('/auth/tiktok', requireAdmin, (req, res) => {
+  try {
+    if (!tiktokEstaConfigurado()) {
+      return res.status(400).send(`
+        <h2>TikTok ainda não configurado</h2>
+        <p>Adicione TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET e TIKTOK_REDIRECT_URI no Render.</p>
+        <p>Depois tente conectar novamente.</p>
+        <a href="/admin.html">Voltar ao painel</a>
+      `);
+    }
+
+    const state = criarStateTikTok();
+    req.session.tiktokState = state;
+
+    const params = new URLSearchParams({
+      client_key: TIKTOK_CLIENT_KEY,
+      response_type: 'code',
+      scope: 'user.info.basic,video.publish',
+      redirect_uri: TIKTOK_REDIRECT_URI,
+      state
+    });
+
+    return res.redirect(`https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`);
+  } catch (error) {
+    console.error('Erro ao iniciar login TikTok:', error);
+    return res.status(500).send('Erro ao conectar com TikTok.');
+  }
+});
+
+app.get('/auth/tiktok/callback', requireAdmin, async (req, res) => {
+  try {
+    const { code, state, error, error_description } = req.query;
+
+    if (error) {
+      return res.status(400).send(`
+        <h2>TikTok retornou erro</h2>
+        <p>${error_description || error}</p>
+        <a href="/admin.html">Voltar ao painel</a>
+      `);
+    }
+
+    if (!code) {
+      return res.status(400).send(`
+        <h2>Código TikTok não recebido</h2>
+        <p>Tente conectar novamente.</p>
+        <a href="/admin.html">Voltar ao painel</a>
+      `);
+    }
+
+    if (!state || state !== req.session.tiktokState) {
+      return res.status(400).send(`
+        <h2>Validação de segurança falhou</h2>
+        <p>O state do TikTok não bateu com a sessão.</p>
+        <a href="/admin.html">Voltar ao painel</a>
+      `);
+    }
+
+    if (!tiktokEstaConfigurado()) {
+      return res.status(400).send(`
+        <h2>TikTok ainda não configurado</h2>
+        <p>Adicione as variáveis no Render e tente de novo.</p>
+        <a href="/admin.html">Voltar ao painel</a>
+      `);
+    }
+
+    const body = new URLSearchParams({
+      client_key: TIKTOK_CLIENT_KEY,
+      client_secret: TIKTOK_CLIENT_SECRET,
+      code: String(code),
+      grant_type: 'authorization_code',
+      redirect_uri: TIKTOK_REDIRECT_URI
+    });
+
+    const tokenResponse = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cache-Control': 'no-cache'
+      },
+      body
+    });
+
+    const tokenData = await tokenResponse.json();
+
+    if (!tokenResponse.ok) {
+      console.error('Erro ao pegar token TikTok:', tokenData);
+      return res.status(400).send(`
+        <h2>Erro ao conectar TikTok</h2>
+        <p>Não foi possível gerar o token.</p>
+        <pre>${JSON.stringify(tokenData, null, 2)}</pre>
+        <a href="/admin.html">Voltar ao painel</a>
+      `);
+    }
+
+    req.session.tiktok = {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      openId: tokenData.open_id,
+      expiresIn: tokenData.expires_in,
+      conectadoEm: new Date().toISOString()
+    };
+
+    delete req.session.tiktokState;
+
+    return res.send(`
+      <h2>TikTok conectado com sucesso ✅</h2>
+      <p>Agora o Cinezor está autorizado a usar a conta TikTok conectada.</p>
+      <a href="/admin.html">Voltar ao painel</a>
+    `);
+  } catch (error) {
+    console.error('Erro no callback TikTok:', error);
+    return res.status(500).send('Erro ao finalizar conexão com TikTok.');
+  }
+});
+
+app.get('/api/tiktok/status', requireAdmin, (req, res) => {
+  res.json({
+    configurado: tiktokEstaConfigurado(),
+    conectado: Boolean(req.session.tiktok && req.session.tiktok.accessToken),
+    aprovado: false,
+    message: req.session.tiktok?.accessToken
+      ? 'TikTok conectado nesta sessão.'
+      : 'TikTok ainda não conectado.'
+  });
+});
+
+app.post('/api/tiktok/postar', requireAdmin, async (req, res) => {
+  try {
+    if (!req.session.tiktok || !req.session.tiktok.accessToken) {
+      return res.status(401).json({
+        error: 'Conecte sua conta TikTok antes de postar.'
+      });
+    }
+
+    /*
+      Esta rota está preparada para a próxima etapa.
+      Para publicar vídeo de verdade, ainda vamos precisar:
+      1. Receber ou hospedar o MP4 do corte.
+      2. Gerar uma URL pública do vídeo ou upload binário.
+      3. Chamar a Content Posting API do TikTok.
+      4. Usar video.publish após aprovação do app.
+    */
+
+    return res.status(202).json({
+      message: 'TikTok conectado. A publicação automática será ativada depois da aprovação final e configuração do envio de vídeo.'
+    });
+  } catch (error) {
+    console.error('Erro ao postar no TikTok:', error);
+    res.status(500).json({ error: 'Erro ao postar no TikTok.' });
   }
 });
 
