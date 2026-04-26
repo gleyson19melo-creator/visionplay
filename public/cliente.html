@@ -12,65 +12,83 @@
 </head>
 
 <body>
-  <div class="container">
 
-    <section class="hero">
-      <div>
-        <h1>Cinezor</h1>
-        <p>Assista aos conteúdos disponíveis para seu acesso.</p>
-      </div>
+  <div class="cliente-layout">
 
-      <div class="hero-actions">
-        <button class="btn btn-logout" onclick="logout()">Sair</button>
-      </div>
-    </section>
+    <aside class="sidebar-cliente">
+      <h2>Cinezor</h2>
+      <a href="#">🏠 Início</a>
+      <a href="#">🎬 Filmes</a>
+      <a href="#">📺 Séries</a>
+      <a href="#">📚 Livros</a>
+      <a href="#">⭐ Premium</a>
 
-    <section class="stats">
-      <div class="stat-card">
-        <span>Total de conteúdos</span>
-        <strong id="totalCanaisCliente">0</strong>
-      </div>
+      <button class="btn btn-logout sidebar-sair" onclick="logout()">Sair</button>
+    </aside>
 
-      <div class="stat-card">
-        <span>Status</span>
-        <strong>Premium</strong>
-      </div>
+    <main class="cliente-main">
 
-      <div class="stat-card">
-        <span>Acesso</span>
-        <strong>Liberado</strong>
-      </div>
-    </section>
-
-    <section class="channels-card">
-      <div class="channels-top">
+      <section class="hero hero-cliente-premium">
         <div>
-          <h2>Catálogo disponível</h2>
-          <p>Escolha uma categoria e assista ao conteúdo desejado.</p>
+          <span class="hero-badge">Cinezor Premium</span>
+          <h1>Catálogo disponível</h1>
+          <p>Assista aos conteúdos disponíveis para seu acesso.</p>
         </div>
-      </div>
 
-      <div class="search-box">
-        <input type="text" id="buscaCliente" placeholder="Buscar conteúdo...">
-      </div>
+        <div class="hero-actions">
+          <button class="btn btn-logout" onclick="logout()">Sair</button>
+        </div>
+      </section>
 
-      <div class="search-box">
-        <input type="text" id="buscaLivrosCliente" placeholder="Buscar só livros...">
-      </div>
+      <section class="stats">
+        <div class="stat-card">
+          <span>Total de conteúdos</span>
+          <strong id="totalCanaisCliente">0</strong>
+        </div>
 
-      <div class="category-filters">
-        <button class="btn btn-filter active" onclick="filtrarCategoria('Todos')">Todos</button>
-        <button class="btn btn-filter" onclick="filtrarCategoria('Filme')">Filme</button>
-        <button class="btn btn-filter" onclick="filtrarCategoria('Série')">Série</button>
-        <button class="btn btn-filter" onclick="filtrarCategoria('Anime')">Anime</button>
-        <button class="btn btn-filter" onclick="filtrarCategoria('TV ao vivo')">TV ao vivo</button>
-        <button class="btn btn-filter" onclick="filtrarCategoria('Trailer')">Trailer</button>
-        <button class="btn btn-filter" onclick="filtrarCategoria('Livro')">Livro</button>
-      </div>
+        <div class="stat-card">
+          <span>Status</span>
+          <strong>Premium</strong>
+        </div>
 
-      <div id="listaCanais" class="channel-grid"></div>
-    </section>
+        <div class="stat-card">
+          <span>Acesso</span>
+          <strong>Liberado</strong>
+        </div>
+      </section>
 
+      <section class="channels-card">
+        <div class="channels-top">
+          <div>
+            <h2>Explorar conteúdos</h2>
+            <p>Escolha uma categoria e assista ao conteúdo desejado.</p>
+          </div>
+        </div>
+
+        <div class="cliente-search-row">
+          <div class="search-box">
+            <input type="text" id="buscaCliente" placeholder="Buscar conteúdo...">
+          </div>
+
+          <div class="search-box">
+            <input type="text" id="buscaLivrosCliente" placeholder="Buscar só livros...">
+          </div>
+        </div>
+
+        <div class="category-filters">
+          <button class="btn btn-filter active" onclick="filtrarCategoria('Todos')">Todos</button>
+          <button class="btn btn-filter" onclick="filtrarCategoria('Filme')">Filme</button>
+          <button class="btn btn-filter" onclick="filtrarCategoria('Série')">Série</button>
+          <button class="btn btn-filter" onclick="filtrarCategoria('Anime')">Anime</button>
+          <button class="btn btn-filter" onclick="filtrarCategoria('TV ao vivo')">TV ao vivo</button>
+          <button class="btn btn-filter" onclick="filtrarCategoria('Trailer')">Trailer</button>
+          <button class="btn btn-filter" onclick="filtrarCategoria('Livro')">Livro</button>
+        </div>
+
+        <div id="listaCanais" class="channel-grid"></div>
+      </section>
+
+    </main>
   </div>
 
   <!-- PLAYER FILMES -->
