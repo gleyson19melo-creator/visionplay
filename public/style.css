@@ -850,3 +850,45 @@ textarea::placeholder{
 .channels-top h2{
   margin-top: 0 !important;
 }
+/* ===== Páginas legais: Privacy / Terms ===== */
+.legal-page{
+  min-height:100vh;
+  padding:40px 15px;
+}
+
+.legal-card{
+  max-width:900px;
+  margin:0 auto;
+  background:#ffffff;
+  color:#111111;
+  padding:32px;
+  border-radius:22px;
+  box-shadow:0 12px 35px rgba(0,0,0,.30);
+  line-height:1.8;
+}
+
+.legal-card h1{
+  font-size:38px;
+  margin-bottom:10px;
+  color:#111111;
+}
+
+.legal-card h2{
+  margin-top:22px;
+  margin-bottom:8px;
+  font-size:26px;
+  color:#111111;
+}
+
+.legal-card p,
+.legal-card li{
+  color:#222222;
+  font-size:17px;
+}
+
+.legal-actions{
+  margin-top:28px;
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+}
